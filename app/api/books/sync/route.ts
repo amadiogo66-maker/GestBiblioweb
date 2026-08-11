@@ -1,0 +1,95 @@
+import { timingSafeEqual } from 'crypto';
+import { NextResponse, type NextRequest } from 'next/server';
+import { syncBookSchema } from '@/schemas/book';
+import { bookSelect, toBookCreateData } from '@/lib/books';
+import { jsonResponse, prismaErrorResponse, validationErrorResponse } from '@/lib/api';
+import { prisma } from '@/lib/prisma';
+import { logger } from '@/lib/logger';
+
+export const runtime = 'nodejs';
+
+function isValidApiKey(apiKey: string | null): boolean {
+  const expectedApiKey = process.env.GEST_BIBLIO_API_KEY;
+
+  if (!apiKey || !expectedApiKey) {
+    return false;
+  }
+
+  const provided = Buffer.from(apiKey);
+  const expected = Buffer.from(expectedApiKey);
+
+  return provided.length === expected.length && timingSafeEqual(provided, expected);
+}
+
+export async function POST(request: NextRequest): Promise<NextResponse> {
+  if (!process.env.GEST_BIBLIO_API_KEY) {
+    logger.error('Gest Biblio sync API key is not configured');
+    return jsonResponse({ success: false, message: 'Synchronisation indisponible' }, 500);
+  }
+
+  if (!isValidApiKey(request.headers.get('x-api-key'))) {
+    return jsonResponse({ success: false, message: 'Clé API invalide' }, 401);
+  }
+
+  try {
+    const payload = await request.json();
+    const parsed = syncBookSchema.safeParse(payload);
+
+    if (!parsed.success) {
+      return validationErrorResponse(parsed.error);
+    }
+
+    const { action, book } = parsed.data;
+
+    if (action === 'DELETE') {
+      const deletedBook = await prisma.book.delete({
+        where: { externalId: book.externalId },
+        select: bookSelect,
+      });
+
+      await prisma.activityLog.create({
+        data: {
+          action: 'book.sync.delete',
+          ipAddress: request.headers.get('x-forwarded-for'),
+          userAgent: request.headers.get('user-agent'),
+          details: { externalId: deletedBook.externalId, isbn: deletedBook.isbn },
+        },
+      });
+
+      return jsonResponse({ success: true, message: 'Livre supprimé', data: deletedBook });
+    }
+
+    const data = toBookCreateData(book);
+    const syncedBook = await prisma.book.upsert({
+      where: { externalId: book.externalId },
+      create: data,
+      update: data,
+      select: bookSelect,
+    });
+
+    await prisma.activityLog.create({
+      data: {
+        action: action === 'CREATE' ? 'book.sync.create' : 'book.sync.update',
+        ipAddress: request.headers.get('x-forwarded-for'),
+        userAgent: request.headers.get('user-agent'),
+        details: { externalId: syncedBook.externalId, isbn: syncedBook.isbn },
+      },
+    });
+
+    return jsonResponse({
+      success: true,
+      message: action === 'CREATE' ? 'Livre synchronisé' : 'Livre mis à jour',
+      data: syncedBook,
+    });
+  } catch (error) {
+    const prismaResponse = prismaErrorResponse(error);
+
+    if (prismaResponse) {
+      return prismaResponse;
+    }
+
+    logger.error('Book sync failed', { error: error instanceof Error ? error.message : 'unknown error' });
+    return jsonResponse({ success: false, message: 'Impossible de synchroniser le livre' }, 500);
+  }
+}
+

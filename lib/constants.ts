@@ -1,0 +1,14 @@
+export const APP_NAME = 'Gest Biblio';
+export const UNIVERSITY_NAME = 'Université de Labé';
+export const MAX_LOANS_STUDENT = 5;
+export const MAX_LOANS_TEACHER = 10;
+export const LOAN_DURATION_DAYS = 14;
+export const RENEWAL_MAX_COUNT = 2;
+export const RENEWAL_DURATION_DAYS = 7;
+export const RESERVATION_EXPIRY_DAYS = 3;
+export const FINE_PER_DAY = 500;
+export const API_VERSION = 'v1';
+export const DEFAULT_PAGE_SIZE = 20;
+export const MAX_PAGE_SIZE = 100;
+export const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+export const MAX_FILE_SIZE = 5 * 1024 * 1024;
