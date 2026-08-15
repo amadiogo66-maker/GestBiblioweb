@@ -8,3 +8,11 @@ export const listNotificationsSchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(20),
 });
 
+export const notificationSyncSchema = z.object({
+  userId: z.string().trim().min(1),
+  type: z.nativeEnum(NotificationType),
+  title: z.string().trim().min(1).max(255),
+  message: z.string().trim().min(1).max(2000),
+  isRead: z.boolean().optional().default(false),
+});
+

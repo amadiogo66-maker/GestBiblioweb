@@ -56,6 +56,9 @@ export const reservationSelect = {
   },
 } satisfies Prisma.ReservationSelect;
 
+export type LoanWithBook = Prisma.LoanGetPayload<{ select: typeof loanSelect }>;
+export type ReservationWithBook = Prisma.ReservationGetPayload<{ select: typeof reservationSelect }>;
+
 export function createRenewedDueDate(from: Date): Date {
   const baseDate = from > new Date() ? from : new Date();
 

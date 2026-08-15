@@ -1,5 +1,4 @@
 import { z } from 'zod';
-import { UserRole } from '@prisma/client';
 
 export const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/;
 const passwordMessage = 'Password must contain at least one lowercase letter, one uppercase letter and one number';
@@ -19,7 +18,7 @@ export const registerSchema = z
     confirmPassword: z.string(),
     firstName: z.string().trim().min(2).max(100),
     lastName: z.string().trim().min(2).max(100),
-    role: z.nativeEnum(UserRole).default(UserRole.STUDENT),
+    role: z.enum(['STUDENT', 'TEACHER', 'VISITOR']).default('STUDENT'),
     department: z.string().trim().max(100).optional(),
   })
   .refine((data) => data.password === data.confirmPassword, {

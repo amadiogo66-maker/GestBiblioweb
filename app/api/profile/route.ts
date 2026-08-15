@@ -1,3 +1,4 @@
+import { LoanStatus, ReservationStatus, UserStatus } from '@prisma/client';
 import { NextResponse, type NextRequest } from 'next/server';
 import { getAuthenticatedUser, jsonResponse, validationErrorResponse } from '@/lib/api';
 import { prisma } from '@/lib/prisma';
@@ -6,11 +7,72 @@ import { updateProfileSchema } from '@/schemas/user';
 
 export const runtime = 'nodejs';
 
+export async function GET(): Promise<NextResponse> {
+  try {
+    const user = await getAuthenticatedUser();
+
+    if (!user || user.status !== UserStatus.ACTIVE) {
+      return jsonResponse({ success: false, message: 'Non authentifié' }, 401);
+    }
+
+    const [profile, activeLoans, pendingReservations, unreadNotifications] = await prisma.$transaction([
+      prisma.user.findUniqueOrThrow({
+        where: { id: user.id },
+        select: {
+          id: true,
+          email: true,
+          username: true,
+          firstName: true,
+          lastName: true,
+          role: true,
+          photo: true,
+          libraryCard: true,
+          department: true,
+          qrCode: true,
+        },
+      }),
+      prisma.loan.count({
+        where: {
+          userId: user.id,
+          status: LoanStatus.ACTIVE,
+        },
+      }),
+      prisma.reservation.count({
+        where: {
+          userId: user.id,
+          status: { in: [ReservationStatus.PENDING, ReservationStatus.READY] },
+        },
+      }),
+      prisma.notification.count({
+        where: {
+          userId: user.id,
+          isRead: false,
+        },
+      }),
+    ]);
+
+    return jsonResponse({
+      success: true,
+      data: {
+        ...profile,
+        stats: {
+          activeLoans,
+          pendingReservations,
+          unreadNotifications,
+        },
+      },
+    });
+  } catch (error) {
+    logger.error('Profile fetch failed', { error: error instanceof Error ? error.message : 'unknown error' });
+    return jsonResponse({ success: false, message: 'Impossible de récupérer le profil' }, 500);
+  }
+}
+
 export async function PATCH(request: NextRequest): Promise<NextResponse> {
   try {
     const user = await getAuthenticatedUser();
 
-    if (!user) {
+    if (!user || user.status !== UserStatus.ACTIVE) {
       return jsonResponse({ success: false, message: 'Non authentifié' }, 401);
     }
 
@@ -24,10 +86,10 @@ export async function PATCH(request: NextRequest): Promise<NextResponse> {
     const updatedUser = await prisma.user.update({
       where: { id: user.id },
       data: {
-        firstName: parsed.data.firstName,
-        lastName: parsed.data.lastName,
-        photo: parsed.data.photo || null,
-        department: parsed.data.department || null,
+        ...(parsed.data.firstName !== undefined ? { firstName: parsed.data.firstName } : {}),
+        ...(parsed.data.lastName !== undefined ? { lastName: parsed.data.lastName } : {}),
+        ...(parsed.data.photo !== undefined ? { photo: parsed.data.photo || null } : {}),
+        ...(parsed.data.department !== undefined ? { department: parsed.data.department || null } : {}),
       },
       select: {
         id: true,
@@ -36,11 +98,21 @@ export async function PATCH(request: NextRequest): Promise<NextResponse> {
         firstName: true,
         lastName: true,
         role: true,
-        status: true,
         photo: true,
         libraryCard: true,
         department: true,
+        qrCode: true,
         updatedAt: true,
+      },
+    });
+
+    await prisma.activityLog.create({
+      data: {
+        userId: user.id,
+        action: 'profile.update',
+        ipAddress: request.headers.get('x-forwarded-for'),
+        userAgent: request.headers.get('user-agent'),
+        details: { userId: updatedUser.id },
       },
     });
 

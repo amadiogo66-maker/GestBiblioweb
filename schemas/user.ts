@@ -1,9 +1,9 @@
 import { z } from 'zod';
 
 export const updateProfileSchema = z.object({
-  firstName: z.string().trim().min(2).max(100),
-  lastName: z.string().trim().min(2).max(100),
-  photo: z.string().url().optional().or(z.literal('')),
+  firstName: z.string().trim().min(2).max(100).optional(),
+  lastName: z.string().trim().min(2).max(100).optional(),
+  photo: z.string().url().optional().or(z.literal('')).optional(),
   department: z.string().trim().max(100).optional(),
 });
 

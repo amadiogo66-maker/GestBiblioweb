@@ -20,7 +20,11 @@
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:seed": "tsx prisma/seed.ts",
-    "db:studio": "prisma studio"
+    "db:demo-books": "tsx prisma/add-demo-books.ts",
+    "db:studio": "prisma studio",
+    "db:start": "docker compose up -d --wait",
+    "db:stop": "docker compose down",
+    "db:reset": "docker compose down -v && docker compose up -d --wait && npx prisma migrate dev && npx prisma db seed"
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.11.3",

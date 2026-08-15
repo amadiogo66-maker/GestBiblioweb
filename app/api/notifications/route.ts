@@ -1,15 +1,13 @@
-import { UserStatus, type Prisma } from '@prisma/client';
+import { UserStatus } from '@prisma/client';
 import { NextResponse, type NextRequest } from 'next/server';
-import { listNotificationsSchema } from '@/schemas/notification';
-import { getAuthenticatedUser, jsonResponse, validationErrorResponse } from '@/lib/api';
+import { getAuthenticatedUser, jsonResponse } from '@/lib/api';
 import { prisma } from '@/lib/prisma';
 import { logger } from '@/lib/logger';
 import { notificationSelect } from '@/lib/notifications';
-import type { PaginatedResponse } from '@/types';
 
 export const runtime = 'nodejs';
 
-export async function GET(request: NextRequest): Promise<NextResponse> {
+export async function GET(): Promise<NextResponse> {
   try {
     const user = await getAuthenticatedUser();
 
@@ -17,56 +15,55 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       return jsonResponse({ success: false, message: 'Non authentifié' }, 401);
     }
 
-    const query = Object.fromEntries(request.nextUrl.searchParams.entries());
-    const parsed = listNotificationsSchema.safeParse(query);
-
-    if (!parsed.success) {
-      return validationErrorResponse(parsed.error);
-    }
-
-    const { page, limit, type, isRead } = parsed.data;
-    const where: Prisma.NotificationWhereInput = {
-      userId: user.id,
-      ...(type ? { type } : {}),
-      ...(isRead !== undefined ? { isRead } : {}),
-    };
-    const skip = (page - 1) * limit;
-    const [notifications, total, unreadCount] = await prisma.$transaction([
-      prisma.notification.findMany({
-        where,
-        select: notificationSelect,
-        orderBy: { createdAt: 'desc' },
-        skip,
-        take: limit,
-      }),
-      prisma.notification.count({ where }),
-      prisma.notification.count({
-        where: {
-          userId: user.id,
-          isRead: false,
-        },
-      }),
-    ]);
-    const totalPages = Math.ceil(total / limit);
-
-    return jsonResponse<PaginatedResponse<(typeof notifications)[number]> & { unreadCount: number }>({
-      success: true,
-      data: {
-        data: notifications,
-        pagination: {
-          page,
-          limit,
-          total,
-          totalPages,
-          hasNext: page < totalPages,
-          hasPrev: page > 1,
-        },
-        unreadCount,
-      },
+    const notifications = await prisma.notification.findMany({
+      where: { userId: user.id },
+      select: notificationSelect,
+      orderBy: { createdAt: 'desc' },
     });
+
+    return jsonResponse({ success: true, data: notifications });
   } catch (error) {
     logger.error('Notification list failed', { error: error instanceof Error ? error.message : 'unknown error' });
     return jsonResponse({ success: false, message: 'Impossible de récupérer les notifications' }, 500);
+  }
+}
+
+export async function PATCH(request: NextRequest): Promise<NextResponse> {
+  try {
+    const user = await getAuthenticatedUser();
+
+    if (!user || user.status !== UserStatus.ACTIVE) {
+      return jsonResponse({ success: false, message: 'Non authentifié' }, 401);
+    }
+
+    const result = await prisma.notification.updateMany({
+      where: {
+        userId: user.id,
+        isRead: false,
+      },
+      data: { isRead: true },
+    });
+
+    if (result.count > 0) {
+      await prisma.activityLog.create({
+        data: {
+          userId: user.id,
+          action: 'notification.read_all',
+          ipAddress: request.headers.get('x-forwarded-for'),
+          userAgent: request.headers.get('user-agent'),
+          details: { count: result.count },
+        },
+      });
+    }
+
+    return jsonResponse({
+      success: true,
+      message: 'Notifications marquées comme lues',
+      data: { count: result.count },
+    });
+  } catch (error) {
+    logger.error('Mark all notifications read failed', { error: error instanceof Error ? error.message : 'unknown error' });
+    return jsonResponse({ success: false, message: 'Impossible de marquer les notifications comme lues' }, 500);
   }
 }
 

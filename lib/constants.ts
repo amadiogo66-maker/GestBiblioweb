@@ -1,5 +1,8 @@
 export const APP_NAME = 'Gest Biblio';
 export const UNIVERSITY_NAME = 'Université de Labé';
+export const CONTACT_ADDRESS = `Campus de ${UNIVERSITY_NAME}, Labé, Guinée`;
+export const CONTACT_PHONE = '+224 000 00 00 00';
+export const CONTACT_EMAIL = 'bibliotheque@universite-labe.edu.gn';
 export const MAX_LOANS_STUDENT = 5;
 export const MAX_LOANS_TEACHER = 10;
 export const LOAN_DURATION_DAYS = 14;
