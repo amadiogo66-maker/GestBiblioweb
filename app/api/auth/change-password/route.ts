@@ -1,6 +1,6 @@
 import { compare, hash } from 'bcryptjs';
 import { NextResponse, type NextRequest } from 'next/server';
-import { getAuthenticatedUser, jsonResponse, validationErrorResponse } from '@/lib/api';
+import { getActiveAuthenticatedUser, jsonResponse, validationErrorResponse } from '@/lib/api';
 import { prisma } from '@/lib/prisma';
 import { logger } from '@/lib/logger';
 import { changePasswordSchema } from '@/schemas/user';
@@ -9,7 +9,7 @@ export const runtime = 'nodejs';
 
 export async function PATCH(request: NextRequest): Promise<NextResponse> {
   try {
-    const user = await getAuthenticatedUser();
+    const user = await getActiveAuthenticatedUser();
 
     if (!user) {
       return jsonResponse({ success: false, message: 'Non authentifié' }, 401);
@@ -55,4 +55,3 @@ export async function PATCH(request: NextRequest): Promise<NextResponse> {
     return jsonResponse({ success: false, message: 'Impossible de modifier le mot de passe' }, 500);
   }
 }
-

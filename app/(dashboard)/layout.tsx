@@ -1,6 +1,7 @@
 import type { ReactElement, ReactNode } from 'react';
 import { redirect } from 'next/navigation';
 import { auth } from '@/lib/auth';
+import { prisma } from '@/lib/prisma';
 import { DashboardHeader } from '@/components/dashboard/DashboardHeader';
 import { DashboardNav } from '@/components/dashboard/DashboardNav';
 import { Container } from '@/components/ui/Container';
@@ -9,11 +10,20 @@ interface DashboardLayoutProps {
   children: ReactNode;
 }
 
+export const dynamic = 'force-dynamic';
+
 export default async function DashboardLayout({ children }: DashboardLayoutProps): Promise<ReactElement> {
   const session = await auth();
 
   if (!session?.user) {
     redirect('/connexion');
+  }
+
+  // One database lookup at the shared dashboard layout boundary per navigation.
+  const user = await prisma.user.findUnique({ where: { id: session.user.id }, select: { status: true } });
+
+  if (!user || user.status !== 'ACTIVE') {
+    redirect(user?.status === 'PENDING' ? '/en-attente-validation' : '/connexion?error=account_blocked');
   }
 
   return (

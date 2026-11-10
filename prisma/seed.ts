@@ -201,6 +201,69 @@ const NEWS = [
   },
 ];
 
+const LIBRARY_MEMBERS = [
+  {
+    matricule: 'ETU-2026-001',
+    nom: 'Diallo',
+    prenom: 'Mariama',
+    dateNaissance: new Date('2003-04-12'),
+    email: 'mariama.diallo@example.com',
+    role: 'STUDENT',
+    departement: 'Informatique',
+    inscriptionActive: true,
+  },
+  {
+    matricule: 'ENS-2026-002',
+    nom: 'Barry',
+    prenom: 'Ibrahima',
+    dateNaissance: new Date('1978-09-03'),
+    email: 'ibrahima.barry@example.com',
+    role: 'TEACHER',
+    departement: 'Droit',
+    inscriptionActive: true,
+  },
+  {
+    matricule: 'ETU-2026-003',
+    nom: 'Camara',
+    prenom: 'Fatoumata',
+    dateNaissance: new Date('2000-01-20'),
+    email: null,
+    role: 'STUDENT',
+    departement: 'Gestion',
+    inscriptionActive: false,
+  },
+  {
+    matricule: 'ETU-2026-000',
+    nom: 'Test',
+    prenom: 'Étudiant',
+    dateNaissance: new Date('1999-06-15'),
+    email: 'test@test.com',
+    role: 'STUDENT',
+    departement: 'Informatique',
+    inscriptionActive: true,
+  },
+  {
+    matricule: 'VIS-2026-004',
+    nom: 'Sow',
+    prenom: 'Aïssatou',
+    dateNaissance: new Date('1990-12-01'),
+    email: null,
+    role: 'VISITOR',
+    departement: null,
+    inscriptionActive: true,
+  },
+] as const;
+
+async function seedLibraryMembers(): Promise<void> {
+  for (const member of LIBRARY_MEMBERS) {
+    await prisma.libraryMember.upsert({
+      where: { matricule: member.matricule },
+      update: member,
+      create: member,
+    });
+  }
+}
+
 async function seedSettings(): Promise<void> {
   await prisma.siteSetting.upsert({
     where: { key: 'app_name' },
@@ -240,7 +303,7 @@ async function seedTestUser(): Promise<void> {
 
   await prisma.user.upsert({
     where: { email: 'test@test.com' },
-    update: {},
+    update: { matricule: 'ETU-2026-000' },
     create: {
       email: 'test@test.com',
       username: 'test',
@@ -250,6 +313,7 @@ async function seedTestUser(): Promise<void> {
       role: 'STUDENT',
       status: 'ACTIVE',
       department: 'Informatique',
+      matricule: 'ETU-2026-000',
     },
   });
 }
@@ -258,6 +322,7 @@ async function main(): Promise<void> {
   await seedSettings();
   await seedBooks();
   await seedNews();
+  await seedLibraryMembers();
   await seedTestUser();
 }
 

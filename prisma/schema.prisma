@@ -75,12 +75,15 @@ model User {
   lastName      String
   role          UserRole     @default(STUDENT)
   status        UserStatus   @default(PENDING)
+  autoSuspendedAt DateTime?
   photo         String?
   qrCode        String?
   libraryCard   String?      @unique
   department    String?
+  matricule     String?      @unique
   createdAt     DateTime     @default(now())
   updatedAt     DateTime     @updatedAt
+  libraryMember LibraryMember? @relation(fields: [matricule], references: [matricule])
   loans         Loan[]
   reservations  Reservation[]
   attendances   Attendance[]
@@ -92,6 +95,24 @@ model User {
   @@index([username])
   @@index([status])
   @@index([role])
+}
+
+model LibraryMember {
+  id                String    @id @default(cuid())
+  matricule         String    @unique
+  nom               String
+  prenom            String
+  dateNaissance     DateTime
+  email             String?
+  role              UserRole  @default(STUDENT)
+  departement       String?
+  inscriptionActive Boolean   @default(true)
+  dateExpiration    DateTime?
+  syncedAt          DateTime  @updatedAt
+  createdAt         DateTime  @default(now())
+  user              User?
+
+  @@index([inscriptionActive])
 }
 
 model Account {

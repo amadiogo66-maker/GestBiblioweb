@@ -50,10 +50,26 @@ npx prisma migrate dev
 npm run db:seed
 ```
 
-Crée 10 ouvrages, 3 actualités, et un compte de test :
+Crée 10 ouvrages, 3 actualités, un compte de test, et 5 `LibraryMember` de test :
 
 - **Email / nom d'utilisateur** : `test@test.com` / `test`
 - **Mot de passe** : `Test1234!`
+
+### Membres de bibliothèque de test (`LibraryMember`)
+
+L'inscription sur le site (`/inscription`) exige désormais un matricule + une date de naissance
+correspondant à un membre déjà connu (poussé normalement par le logiciel de gestion via
+`POST /api/members/sync`). En attendant que ce logiciel existe, le seed pré-remplit ces membres :
+
+| Matricule | Nom | Prénom | Date de naissance | Rôle | Département | Actif | Compte web déjà créé ? |
+|---|---|---|---|---|---|---|---|
+| `ETU-2026-001` | Diallo | Mariama | 12/04/2003 | Étudiant | Informatique | Oui | Non — utilisable pour tester une inscription réussie |
+| `ENS-2026-002` | Barry | Ibrahima | 03/09/1978 | Enseignant | Droit | Oui | Non — utilisable pour tester une inscription réussie |
+| `ETU-2026-003` | Camara | Fatoumata | 20/01/2000 | Étudiant | Gestion | **Non** | Non — doit être refusé (inscription radiée) |
+| `ETU-2026-000` | Test | Étudiant | 15/06/1999 | Étudiant | Informatique | Oui | **Oui** (`test@test.com`) — doit être refusé (déjà rattaché) |
+| `VIS-2026-004` | Sow | Aïssatou | 01/12/1990 | Visiteur | — | Oui | Non — utilisable pour tester une inscription réussie |
+
+Pour tester un cas nominal, utilisez par exemple `ETU-2026-001` + `2003-04-12`.
 
 ## 6. Lancer le serveur de développement
 

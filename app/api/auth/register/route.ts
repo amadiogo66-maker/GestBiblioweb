@@ -1,13 +1,17 @@
 import { hash } from 'bcryptjs';
 import QRCode from 'qrcode';
-import { UserStatus } from '@prisma/client';
+import { Prisma, UserStatus } from '@prisma/client';
 import { NextResponse, type NextRequest } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { logger } from '@/lib/logger';
 import { jsonResponse, prismaErrorResponse, validationErrorResponse } from '@/lib/api';
 import { registerSchema } from '@/schemas/auth';
+import { createMemberVerificationIdentifier, hashToken } from '@/lib/tokens';
 
 export const runtime = 'nodejs';
+
+const GENERIC_MESSAGE =
+  "Nous n'avons pas pu vérifier votre inscription. Vérifiez vos informations ou présentez-vous à la bibliothèque.";
 
 function createLibraryCard(): string {
   const year = new Date().getFullYear();
@@ -25,7 +29,30 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       return validationErrorResponse(parsed.error);
     }
 
-    const { confirmPassword: _confirmPassword, password, ...data } = parsed.data;
+    const { matricule, verificationToken, email, username, password } = parsed.data;
+
+    const identifier = createMemberVerificationIdentifier(matricule);
+    const tokenHash = hashToken(verificationToken);
+    const verification = await prisma.verificationToken.findFirst({
+      where: { identifier, token: tokenHash, expires: { gt: new Date() } },
+    });
+
+    if (!verification) {
+      return jsonResponse({ success: false, message: GENERIC_MESSAGE }, 400);
+    }
+
+    const member = await prisma.libraryMember.findUnique({ where: { matricule } });
+
+    if (!member || !member.inscriptionActive) {
+      return jsonResponse({ success: false, message: GENERIC_MESSAGE }, 400);
+    }
+
+    const existingUserForMember = await prisma.user.findUnique({ where: { matricule }, select: { id: true } });
+
+    if (existingUserForMember) {
+      return jsonResponse({ success: false, message: GENERIC_MESSAGE }, 400);
+    }
+
     const hashedPassword = await hash(password, 12);
     const libraryCard = createLibraryCard();
     const qrCode = await QRCode.toDataURL(libraryCard, {
@@ -34,28 +61,37 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       width: 256,
     });
 
-    const user = await prisma.user.create({
-      data: {
-        ...data,
-        password: hashedPassword,
-        status: UserStatus.ACTIVE,
-        libraryCard,
-        qrCode,
-      },
-      select: {
-        id: true,
-        email: true,
-        username: true,
-        firstName: true,
-        lastName: true,
-        role: true,
-        status: true,
-        photo: true,
-        libraryCard: true,
-        department: true,
-        createdAt: true,
-      },
-    });
+    const [user] = await prisma.$transaction([
+      prisma.user.create({
+        data: {
+          email,
+          username,
+          password: hashedPassword,
+          firstName: member.prenom,
+          lastName: member.nom,
+          role: member.role,
+          department: member.departement,
+          matricule: member.matricule,
+          status: UserStatus.ACTIVE,
+          libraryCard,
+          qrCode,
+        },
+        select: {
+          id: true,
+          email: true,
+          username: true,
+          firstName: true,
+          lastName: true,
+          role: true,
+          status: true,
+          photo: true,
+          libraryCard: true,
+          department: true,
+          createdAt: true,
+        },
+      }),
+      prisma.verificationToken.deleteMany({ where: { identifier } }),
+    ]);
 
     await prisma.activityLog.create({
       data: {
@@ -75,6 +111,14 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       201
     );
   } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+      const targets = Array.isArray(error.meta?.target) ? error.meta.target.map(String) : [];
+
+      if (targets.includes('matricule')) {
+        return jsonResponse({ success: false, message: GENERIC_MESSAGE }, 400);
+      }
+    }
+
     const prismaResponse = prismaErrorResponse(error);
 
     if (prismaResponse) {

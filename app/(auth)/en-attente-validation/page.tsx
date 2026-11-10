@@ -27,9 +27,9 @@ export default async function EnAttenteValidationPage(): Promise<ReactElement> {
     select: { email: true, username: true, status: true },
   });
 
-  if (!user || user.status !== 'PENDING') {
-    redirect('/tableau-de-bord');
-  }
+  if (!user) redirect('/connexion');
+  if (user.status === 'ACTIVE') redirect('/tableau-de-bord');
+  if (user.status === 'SUSPENDED' || user.status === 'BANNED') redirect('/connexion?error=account_blocked');
 
   return (
     <AuthLayout

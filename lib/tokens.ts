@@ -12,3 +12,7 @@ export function createPasswordResetIdentifier(email: string): string {
   return `password-reset:${email}`;
 }
 
+export function createMemberVerificationIdentifier(matricule: string): string {
+  return `member-verification:${matricule}`;
+}
+

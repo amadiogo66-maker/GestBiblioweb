@@ -23,7 +23,7 @@ interface FieldErrors {
 
 const ERROR_MESSAGES: Record<string, string> = {
   CredentialsSignin: "Nom d'utilisateur ou mot de passe incorrect.",
-  AccessDenied: 'Votre compte est suspendu. Contactez la bibliothèque.',
+  account_blocked: 'Votre compte est suspendu ou bloqué. Contactez la bibliothèque.',
 };
 
 export function LoginForm({ callbackUrl }: LoginFormProps): ReactElement {
@@ -57,7 +57,10 @@ export function LoginForm({ callbackUrl }: LoginFormProps): ReactElement {
       });
 
       if (!result || result.error) {
-        const message = (result?.error && ERROR_MESSAGES[result.error]) ?? 'Une erreur est survenue. Réessayez.';
+        const message =
+          (result?.code && ERROR_MESSAGES[result.code]) ||
+          (result?.error && ERROR_MESSAGES[result.error]) ||
+          'Une erreur est survenue. Réessayez.';
         setFormError(message);
         return;
       }

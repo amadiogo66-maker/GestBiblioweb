@@ -1,4 +1,4 @@
-import NextAuth, { type DefaultSession } from 'next-auth';
+import NextAuth, { CredentialsSignin, type DefaultSession } from 'next-auth';
 import { PrismaAdapter } from '@auth/prisma-adapter';
 import Credentials from 'next-auth/providers/credentials';
 import { compare } from 'bcryptjs';
@@ -7,6 +7,10 @@ import { loginSchema } from '@/schemas/auth';
 import { logger } from '@/lib/logger';
 import type { UserJWT, UserSession } from '@/types/auth';
 import type { UserRole, UserStatus } from '@/types';
+
+class AccountBlockedError extends CredentialsSignin {
+  code = 'account_blocked';
+}
 
 declare module 'next-auth' {
   interface Session {
@@ -78,7 +82,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
               userId: user.id,
               status: user.status,
             });
-            return null;
+            throw new AccountBlockedError();
           }
 
           return {
@@ -94,6 +98,10 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
             department: user.department,
           };
         } catch (error) {
+          if (error instanceof AccountBlockedError) {
+            throw error;
+          }
+
           logger.error('Auth authorization failed', { error: error instanceof Error ? error.message : 'unknown error' });
           return null;
         }

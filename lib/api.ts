@@ -55,3 +55,13 @@ export async function getAuthenticatedUser() {
     where: { id: session.user.id },
   });
 }
+
+/**
+ * Resolves the session user from the database and authorizes only active
+ * accounts. This makes API mutations enforce a status change immediately,
+ * even when the JWT still contains an older status.
+ */
+export async function getActiveAuthenticatedUser() {
+  const user = await getAuthenticatedUser();
+  return user?.status === 'ACTIVE' ? user : null;
+}
