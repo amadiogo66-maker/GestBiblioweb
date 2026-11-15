@@ -299,11 +299,13 @@ async function seedNews(): Promise<void> {
 }
 
 async function seedTestUser(): Promise<void> {
-  const hashedPassword = await hash('Test1234!', 12);
+  // Mot de passe du compte de test : SEED_TEST_PASSWORD si défini (non vide), sinon valeur par défaut.
+  const testPassword = process.env.SEED_TEST_PASSWORD || 'Test1234!';
+  const hashedPassword = await hash(testPassword, 12);
 
   await prisma.user.upsert({
     where: { email: 'test@test.com' },
-    update: { matricule: 'ETU-2026-000' },
+    update: { matricule: 'ETU-2026-000', password: hashedPassword },
     create: {
       email: 'test@test.com',
       username: 'test',

@@ -3,10 +3,13 @@ node_modules
 out
 coverage
 .env
-.env*.local
+.env*
+!.env.example
 .DS_Store
 npm-debug.log*
 *.tsbuildinfo
 .vscode/
 *.log
 .dev-server*
+
+
