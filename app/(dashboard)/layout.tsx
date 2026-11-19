@@ -5,6 +5,7 @@ import { prisma } from '@/lib/prisma';
 import { DashboardHeader } from '@/components/dashboard/DashboardHeader';
 import { DashboardNav } from '@/components/dashboard/DashboardNav';
 import { Container } from '@/components/ui/Container';
+import { BLOCKED_ACCOUNT_ROUTE } from '@/lib/constants';
 
 interface DashboardLayoutProps {
   children: ReactNode;
@@ -22,8 +23,11 @@ export default async function DashboardLayout({ children }: DashboardLayoutProps
   // One database lookup at the shared dashboard layout boundary per navigation.
   const user = await prisma.user.findUnique({ where: { id: session.user.id }, select: { status: true } });
 
+  // Compte bloqué ou supprimé mais session encore valide : page publique dédiée
+  // (rediriger vers /connexion bouclerait, le middleware y renvoyant tout
+  // utilisateur en session vers /tableau-de-bord).
   if (!user || user.status !== 'ACTIVE') {
-    redirect(user?.status === 'PENDING' ? '/en-attente-validation' : '/connexion?error=account_blocked');
+    redirect(user?.status === 'PENDING' ? '/en-attente-validation' : BLOCKED_ACCOUNT_ROUTE);
   }
 
   return (

@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { auth } from '@/lib/auth';
+import { BLOCKED_ACCOUNT_ROUTE, UNAUTHENTICATED_MESSAGE } from '@/lib/constants';
 
 const protectedRoutes = ['/tableau-de-bord', '/emprunts', '/reservations', '/profil', '/carte-bibliotheque'];
 const authPages = ['/connexion', '/inscription', '/mot-de-passe-oublie', '/reinitialiser-mot-de-passe'];
@@ -31,7 +32,11 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
   const isApiRoute = pathname.startsWith('/api') && !pathname.startsWith('/api/health') && !pathname.startsWith('/api/auth');
   const isAuthPage = authPages.includes(pathname);
 
-  if ((isProtectedRoute || isApiRoute) && !session?.user) {
+  if (isApiRoute && !session?.user) {
+    return NextResponse.json({ success: false, message: UNAUTHENTICATED_MESSAGE }, { status: 401 });
+  }
+
+  if (isProtectedRoute && !session?.user) {
     const redirectUrl = new URL('/connexion', request.url);
     redirectUrl.searchParams.set('callbackUrl', request.url);
     return NextResponse.redirect(redirectUrl);
@@ -41,7 +46,14 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
     return NextResponse.redirect(new URL('/tableau-de-bord', request.url));
   }
 
-  if (session?.user?.status === 'PENDING' && pathname !== pendingRoute && !pathname.startsWith('/api/auth')) {
+  // /compte-bloque reste accessible même si le JWT (périmé) indique encore PENDING,
+  // sinon un compte en attente puis suspendu bouclerait entre les deux pages.
+  if (
+    session?.user?.status === 'PENDING' &&
+    pathname !== pendingRoute &&
+    pathname !== BLOCKED_ACCOUNT_ROUTE &&
+    !pathname.startsWith('/api/auth')
+  ) {
     return NextResponse.redirect(new URL(pendingRoute, request.url));
   }
 

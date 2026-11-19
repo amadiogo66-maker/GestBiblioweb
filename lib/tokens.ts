@@ -8,6 +8,15 @@ export function hashToken(token: string): string {
   return createHash('sha256').update(token).digest('hex');
 }
 
+/**
+ * SHA-256 d'un identifiant normalisé (espaces retirés, minuscules) : email,
+ * matricule, nom d'utilisateur ou IP. À utiliser partout où un identifiant
+ * doit être stocké ou comparé sans être conservé en clair.
+ */
+export function hashIdentifier(value: string): string {
+  return hashToken(value.trim().toLowerCase());
+}
+
 export function createPasswordResetIdentifier(email: string): string {
   return `password-reset:${email}`;
 }

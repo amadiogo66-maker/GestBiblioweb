@@ -4,6 +4,8 @@ import { jsonResponse, validationErrorResponse } from '@/lib/api';
 import { prisma } from '@/lib/prisma';
 import { logger } from '@/lib/logger';
 import { createPasswordResetIdentifier, createSecureToken, hashToken } from '@/lib/tokens';
+import { enforceRateLimits, ipRateLimitKey, rateLimitKey } from '@/lib/rate-limit';
+import { RATE_LIMITS } from '@/lib/constants';
 
 export const runtime = 'nodejs';
 
@@ -12,11 +14,28 @@ const GENERIC_MESSAGE = 'Si un compte existe avec cet email, un lien de réiniti
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
+    const ipLimited = await enforceRateLimits([
+      { key: ipRateLimitKey('forgot-password', request.headers), rule: RATE_LIMITS.forgotPasswordIp },
+    ]);
+
+    if (ipLimited) {
+      return ipLimited;
+    }
+
     const payload = await request.json();
     const parsed = forgotPasswordSchema.safeParse(payload);
 
     if (!parsed.success) {
       return validationErrorResponse(parsed.error);
+    }
+
+    // Compté avant la recherche du compte : même comportement qu'il existe ou non.
+    const emailLimited = await enforceRateLimits([
+      { key: rateLimitKey('forgot-password:email', parsed.data.email), rule: RATE_LIMITS.forgotPasswordEmail },
+    ]);
+
+    if (emailLimited) {
+      return emailLimited;
     }
 
     const user = await prisma.user.findUnique({

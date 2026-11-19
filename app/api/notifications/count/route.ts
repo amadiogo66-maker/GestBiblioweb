@@ -1,6 +1,6 @@
-import { UserStatus } from '@prisma/client';
 import { NextResponse } from 'next/server';
-import { getAuthenticatedUser, jsonResponse } from '@/lib/api';
+import { jsonResponse } from '@/lib/api';
+import { requireActiveUser } from '@/lib/authz';
 import { prisma } from '@/lib/prisma';
 import { logger } from '@/lib/logger';
 
@@ -8,11 +8,13 @@ export const runtime = 'nodejs';
 
 export async function GET(): Promise<NextResponse> {
   try {
-    const user = await getAuthenticatedUser();
+    const authz = await requireActiveUser();
 
-    if (!user || user.status !== UserStatus.ACTIVE) {
-      return jsonResponse({ success: false, message: 'Non authentifié' }, 401);
+    if (!authz.ok) {
+      return authz.response;
     }
+
+    const { user } = authz;
 
     const unreadCount = await prisma.notification.count({
       where: {

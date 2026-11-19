@@ -44,6 +44,11 @@ export function prismaErrorResponse(error: unknown): NextResponse<ApiResponse<ne
   return null;
 }
 
+/**
+ * Utilisateur de la session relu en base, QUEL QUE SOIT son statut.
+ * Réservé à /api/auth/me ; pour autoriser une action, utiliser
+ * requireActiveUser() / requireStaff() de lib/authz.ts.
+ */
 export async function getAuthenticatedUser() {
   const session = await auth();
 
@@ -54,14 +59,4 @@ export async function getAuthenticatedUser() {
   return prisma.user.findUnique({
     where: { id: session.user.id },
   });
-}
-
-/**
- * Resolves the session user from the database and authorizes only active
- * accounts. This makes API mutations enforce a status change immediately,
- * even when the JWT still contains an older status.
- */
-export async function getActiveAuthenticatedUser() {
-  const user = await getAuthenticatedUser();
-  return user?.status === 'ACTIVE' ? user : null;
 }

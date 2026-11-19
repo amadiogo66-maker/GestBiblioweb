@@ -3,11 +3,21 @@ import { contactSchema } from '@/schemas/contact';
 import { jsonResponse, validationErrorResponse } from '@/lib/api';
 import { prisma } from '@/lib/prisma';
 import { logger } from '@/lib/logger';
+import { enforceRateLimits, ipRateLimitKey } from '@/lib/rate-limit';
+import { RATE_LIMITS } from '@/lib/constants';
 
 export const runtime = 'nodejs';
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
+    const limited = await enforceRateLimits([
+      { key: ipRateLimitKey('contact', request.headers), rule: RATE_LIMITS.contactIp },
+    ]);
+
+    if (limited) {
+      return limited;
+    }
+
     const payload = await request.json();
     const parsed = contactSchema.safeParse(payload);
 

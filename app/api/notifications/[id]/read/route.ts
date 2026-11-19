@@ -1,6 +1,6 @@
-import { UserStatus } from '@prisma/client';
 import { NextResponse, type NextRequest } from 'next/server';
-import { getAuthenticatedUser, jsonResponse } from '@/lib/api';
+import { jsonResponse } from '@/lib/api';
+import { requireActiveUser } from '@/lib/authz';
 import { prisma } from '@/lib/prisma';
 import { logger } from '@/lib/logger';
 import { notificationSelect } from '@/lib/notifications';
@@ -15,11 +15,13 @@ interface ReadNotificationRouteContext {
 
 export async function PATCH(request: NextRequest, context: ReadNotificationRouteContext): Promise<NextResponse> {
   try {
-    const user = await getAuthenticatedUser();
+    const authz = await requireActiveUser();
 
-    if (!user || user.status !== UserStatus.ACTIVE) {
-      return jsonResponse({ success: false, message: 'Non authentifié' }, 401);
+    if (!authz.ok) {
+      return authz.response;
     }
+
+    const { user } = authz;
 
     const { id } = await context.params;
     const notification = await prisma.notification.findFirst({

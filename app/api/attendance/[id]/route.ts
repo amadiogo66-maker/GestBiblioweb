@@ -1,7 +1,7 @@
-import { UserStatus } from '@prisma/client';
 import { NextResponse, type NextRequest } from 'next/server';
 import { attendanceCheckoutSchema } from '@/schemas/attendance';
-import { getAuthenticatedUser, jsonResponse, validationErrorResponse } from '@/lib/api';
+import { jsonResponse, validationErrorResponse } from '@/lib/api';
+import { requireActiveUser } from '@/lib/authz';
 import { prisma } from '@/lib/prisma';
 import { logger } from '@/lib/logger';
 
@@ -13,11 +13,13 @@ interface AttendanceRouteContext {
 
 export async function PATCH(request: NextRequest, context: AttendanceRouteContext): Promise<NextResponse> {
   try {
-    const user = await getAuthenticatedUser();
+    const authz = await requireActiveUser();
 
-    if (!user || user.status !== UserStatus.ACTIVE) {
-      return jsonResponse({ success: false, message: 'Non authentifié' }, 401);
+    if (!authz.ok) {
+      return authz.response;
     }
+
+    const { user } = authz;
 
     const payload = await request.json();
     const parsed = attendanceCheckoutSchema.safeParse(payload);

@@ -21,7 +21,6 @@ interface ProfileData {
 
 interface ProfileFormProps {
   profile: ProfileData;
-  departments: string[];
 }
 
 interface FeedbackState {
@@ -29,7 +28,7 @@ interface FeedbackState {
   message: string;
 }
 
-type FieldErrors = Partial<Record<'firstName' | 'lastName' | 'photo' | 'department', string>>;
+type FieldErrors = Partial<Record<'firstName' | 'lastName' | 'photo', string>>;
 
 const ROLE_LABELS: Record<string, string> = {
   STUDENT: 'Étudiant',
@@ -37,11 +36,10 @@ const ROLE_LABELS: Record<string, string> = {
   VISITOR: 'Visiteur',
 };
 
-export function ProfileForm({ profile, departments }: ProfileFormProps): ReactElement {
+export function ProfileForm({ profile }: ProfileFormProps): ReactElement {
   const [firstName, setFirstName] = useState(profile.firstName);
   const [lastName, setLastName] = useState(profile.lastName);
   const [photo, setPhoto] = useState(profile.photo ?? '');
-  const [department, setDepartment] = useState(profile.department ?? '');
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [feedback, setFeedback] = useState<FeedbackState | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -54,7 +52,6 @@ export function ProfileForm({ profile, departments }: ProfileFormProps): ReactEl
       firstName,
       lastName,
       photo,
-      department: department || undefined,
     });
 
     if (!parsed.success) {
@@ -63,7 +60,6 @@ export function ProfileForm({ profile, departments }: ProfileFormProps): ReactEl
         firstName: errors.firstName?.[0],
         lastName: errors.lastName?.[0],
         photo: errors.photo?.[0],
-        department: errors.department?.[0],
       });
       return;
     }
@@ -122,20 +118,9 @@ export function ProfileForm({ profile, departments }: ProfileFormProps): ReactEl
         </FormField>
       </div>
 
-      <FormField label="Département" htmlFor="department" error={fieldErrors.department}>
-        <select
-          id="department"
-          value={department}
-          onChange={(event) => setDepartment(event.target.value)}
-          className="w-full rounded-lg border border-slate-300 bg-white px-4 py-3 text-base text-slate-900 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
-        >
-          <option value="">Non renseigné</option>
-          {departments.map((item) => (
-            <option key={item} value={item}>
-              {item}
-            </option>
-          ))}
-        </select>
+      <FormField label="Département" htmlFor="department">
+        <Input id="department" value={profile.department ?? 'Non renseigné'} readOnly disabled aria-readonly="true" />
+        <p className="text-xs text-slate-500">Défini lors de votre inscription. Pour le corriger, contactez la bibliothèque.</p>
       </FormField>
 
       <FormField label="Photo (URL)" htmlFor="photo" error={fieldErrors.photo}>

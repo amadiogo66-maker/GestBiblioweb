@@ -1,6 +1,7 @@
-import { LoanStatus, ReservationStatus, UserStatus } from '@prisma/client';
+import { LoanStatus, ReservationStatus } from '@prisma/client';
 import { NextResponse, type NextRequest } from 'next/server';
-import { getAuthenticatedUser, jsonResponse, validationErrorResponse } from '@/lib/api';
+import { jsonResponse, validationErrorResponse } from '@/lib/api';
+import { requireActiveUser } from '@/lib/authz';
 import { prisma } from '@/lib/prisma';
 import { logger } from '@/lib/logger';
 import { updateProfileSchema } from '@/schemas/user';
@@ -9,11 +10,13 @@ export const runtime = 'nodejs';
 
 export async function GET(): Promise<NextResponse> {
   try {
-    const user = await getAuthenticatedUser();
+    const authz = await requireActiveUser();
 
-    if (!user || user.status !== UserStatus.ACTIVE) {
-      return jsonResponse({ success: false, message: 'Non authentifié' }, 401);
+    if (!authz.ok) {
+      return authz.response;
     }
+
+    const { user } = authz;
 
     const [profile, activeLoans, pendingReservations, unreadNotifications] = await prisma.$transaction([
       prisma.user.findUniqueOrThrow({
@@ -70,11 +73,13 @@ export async function GET(): Promise<NextResponse> {
 
 export async function PATCH(request: NextRequest): Promise<NextResponse> {
   try {
-    const user = await getAuthenticatedUser();
+    const authz = await requireActiveUser();
 
-    if (!user || user.status !== UserStatus.ACTIVE) {
-      return jsonResponse({ success: false, message: 'Non authentifié' }, 401);
+    if (!authz.ok) {
+      return authz.response;
     }
+
+    const { user } = authz;
 
     const payload = await request.json();
     const parsed = updateProfileSchema.safeParse(payload);
@@ -89,7 +94,6 @@ export async function PATCH(request: NextRequest): Promise<NextResponse> {
         ...(parsed.data.firstName !== undefined ? { firstName: parsed.data.firstName } : {}),
         ...(parsed.data.lastName !== undefined ? { lastName: parsed.data.lastName } : {}),
         ...(parsed.data.photo !== undefined ? { photo: parsed.data.photo || null } : {}),
-        ...(parsed.data.department !== undefined ? { department: parsed.data.department || null } : {}),
       },
       select: {
         id: true,

@@ -4,6 +4,8 @@ import { jsonResponse, validationErrorResponse } from '@/lib/api';
 import { prisma } from '@/lib/prisma';
 import { logger } from '@/lib/logger';
 import { createMemberVerificationIdentifier, createSecureToken, hashToken } from '@/lib/tokens';
+import { enforceRateLimits, ipRateLimitKey, rateLimitKey } from '@/lib/rate-limit';
+import { RATE_LIMITS } from '@/lib/constants';
 
 export const runtime = 'nodejs';
 
@@ -13,6 +15,14 @@ const GENERIC_MESSAGE =
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
+    const ipLimited = await enforceRateLimits([
+      { key: ipRateLimitKey('verify-member', request.headers), rule: RATE_LIMITS.verifyMemberIp },
+    ]);
+
+    if (ipLimited) {
+      return ipLimited;
+    }
+
     const payload = await request.json();
     const parsed = verifyMemberSchema.safeParse(payload);
 
@@ -21,6 +31,16 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     }
 
     const { matricule, dateNaissance } = parsed.data;
+
+    // Compté pour tout matricule soumis, AVANT la recherche en base : le
+    // comportement est identique que le matricule existe ou non.
+    const matriculeLimited = await enforceRateLimits([
+      { key: rateLimitKey('verify-member:matricule', matricule), rule: RATE_LIMITS.verifyMemberMatricule },
+    ]);
+
+    if (matriculeLimited) {
+      return matriculeLimited;
+    }
 
     const member = await prisma.libraryMember.findUnique({
       where: { matricule },

@@ -7,6 +7,8 @@ import { logger } from '@/lib/logger';
 import { jsonResponse, prismaErrorResponse, validationErrorResponse } from '@/lib/api';
 import { registerSchema } from '@/schemas/auth';
 import { createMemberVerificationIdentifier, hashToken } from '@/lib/tokens';
+import { enforceRateLimits, ipRateLimitKey } from '@/lib/rate-limit';
+import { RATE_LIMITS } from '@/lib/constants';
 
 export const runtime = 'nodejs';
 
@@ -22,6 +24,14 @@ function createLibraryCard(): string {
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
+    const limited = await enforceRateLimits([
+      { key: ipRateLimitKey('register', request.headers), rule: RATE_LIMITS.registerIp },
+    ]);
+
+    if (limited) {
+      return limited;
+    }
+
     const payload = await request.json();
     const parsed = registerSchema.safeParse(payload);
 

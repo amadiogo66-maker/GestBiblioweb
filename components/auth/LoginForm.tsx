@@ -11,6 +11,7 @@ import { Input } from '@/components/ui/Input';
 import { FormField } from '@/components/ui/FormField';
 import { PasswordInput } from '@/components/auth/PasswordInput';
 import { AuthError } from '@/components/auth/AuthError';
+import { RATE_LIMIT_MESSAGE } from '@/lib/constants';
 
 interface LoginFormProps {
   callbackUrl: string;
@@ -24,6 +25,7 @@ interface FieldErrors {
 const ERROR_MESSAGES: Record<string, string> = {
   CredentialsSignin: "Nom d'utilisateur ou mot de passe incorrect.",
   account_blocked: 'Votre compte est suspendu ou bloqué. Contactez la bibliothèque.',
+  rate_limited: RATE_LIMIT_MESSAGE,
 };
 
 export function LoginForm({ callbackUrl }: LoginFormProps): ReactElement {

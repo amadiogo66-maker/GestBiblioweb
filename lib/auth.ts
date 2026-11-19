@@ -5,6 +5,8 @@ import { compare } from 'bcryptjs';
 import { prisma } from '@/lib/prisma';
 import { loginSchema } from '@/schemas/auth';
 import { logger } from '@/lib/logger';
+import { logActivity } from '@/lib/activity-log';
+import { hashIdentifier } from '@/lib/tokens';
 import type { UserJWT, UserSession } from '@/types/auth';
 import type { UserRole, UserStatus } from '@/types';
 
@@ -51,7 +53,9 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         username: { label: 'Nom d’utilisateur ou email', type: 'text' },
         password: { label: 'Mot de passe', type: 'password' },
       },
-      async authorize(credentials): Promise<UserSession | null> {
+      async authorize(credentials, request): Promise<UserSession | null> {
+        const headers = request?.headers;
+
         try {
           const parsed = loginSchema.safeParse(credentials);
 
@@ -68,12 +72,24 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           });
 
           if (!user || !user.password) {
+            // Compte inconnu : seul un hachage de l'identifiant est journalisé.
+            await logActivity({
+              action: 'auth.login.failed',
+              headers,
+              details: { reason: 'unknown_account', identifierHash: hashIdentifier(username) },
+            });
             return null;
           }
 
           const isPasswordValid = await compare(password, user.password);
 
           if (!isPasswordValid) {
+            await logActivity({
+              action: 'auth.login.failed',
+              userId: user.id,
+              headers,
+              details: { reason: 'invalid_password' },
+            });
             return null;
           }
 
@@ -82,8 +98,11 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
               userId: user.id,
               status: user.status,
             });
+            await logActivity({ action: 'auth.login.blocked', userId: user.id, headers, details: { status: user.status } });
             throw new AccountBlockedError();
           }
+
+          await logActivity({ action: 'auth.login.success', userId: user.id, headers });
 
           return {
             id: user.id,

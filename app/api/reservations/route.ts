@@ -1,7 +1,8 @@
-import { BookStatus, LoanStatus, ReservationStatus, UserStatus } from '@prisma/client';
+import { BookStatus, LoanStatus, ReservationStatus } from '@prisma/client';
 import { NextResponse, type NextRequest } from 'next/server';
 import { createReservationSchema, listReservationsSchema } from '@/schemas/reservation';
-import { getAuthenticatedUser, jsonResponse, validationErrorResponse } from '@/lib/api';
+import { jsonResponse, validationErrorResponse } from '@/lib/api';
+import { requireActiveUser } from '@/lib/authz';
 import { prisma } from '@/lib/prisma';
 import { logger } from '@/lib/logger';
 import { createReservationExpiryDate, getInitialReservationStatus, reservationSelect } from '@/lib/circulation';
@@ -11,11 +12,13 @@ export const runtime = 'nodejs';
 
 export async function GET(request: NextRequest): Promise<NextResponse> {
   try {
-    const user = await getAuthenticatedUser();
+    const authz = await requireActiveUser();
 
-    if (!user || user.status !== UserStatus.ACTIVE) {
-      return jsonResponse({ success: false, message: 'Non authentifié' }, 401);
+    if (!authz.ok) {
+      return authz.response;
     }
+
+    const { user } = authz;
 
     const query = Object.fromEntries(request.nextUrl.searchParams.entries());
     const parsed = listReservationsSchema.safeParse(query);
@@ -64,11 +67,13 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
-    const user = await getAuthenticatedUser();
+    const authz = await requireActiveUser();
 
-    if (!user || user.status !== UserStatus.ACTIVE) {
-      return jsonResponse({ success: false, message: 'Non authentifié' }, 401);
+    if (!authz.ok) {
+      return authz.response;
     }
+
+    const { user } = authz;
 
     const payload = await request.json();
     const parsed = createReservationSchema.safeParse(payload);

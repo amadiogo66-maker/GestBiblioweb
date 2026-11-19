@@ -4,7 +4,8 @@ export const updateProfileSchema = z.object({
   firstName: z.string().trim().min(2).max(100).optional(),
   lastName: z.string().trim().min(2).max(100).optional(),
   photo: z.string().url().optional().or(z.literal('')).optional(),
-  department: z.string().trim().max(100).optional(),
+  // Le département n'est pas modifiable par l'utilisateur : il provient de
+  // l'inscription (LibraryMember). Une clé `department` envoyée est ignorée (strip Zod).
 });
 
 export const changePasswordSchema = z

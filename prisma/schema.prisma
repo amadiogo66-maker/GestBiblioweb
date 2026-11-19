@@ -66,6 +66,13 @@ enum CheckInMethod {
   CARD
 }
 
+/// Rôles du personnel du site. Distinct de UserRole (piloté par le logiciel
+/// externe) : jamais lu ni écrit par les webhooks de synchronisation.
+enum StaffRole {
+  ADMIN
+  LIBRARIAN
+}
+
 model User {
   id            String       @id @default(cuid())
   email         String       @unique
@@ -90,6 +97,8 @@ model User {
   notifications Notification[]
   accounts      Account[]
   sessions      Session[]
+  staffAssignments        StaffAssignment[] @relation("StaffAssignmentUser")
+  staffAssignmentsGranted StaffAssignment[] @relation("StaffAssignmentGrantedBy")
 
   @@index([email])
   @@index([username])
@@ -267,7 +276,8 @@ model ActivityLog {
   details   Json?
   createdAt DateTime @default(now())
 
-  @@index([userId])
+  @@index([userId, createdAt])
+  @@index([action, createdAt])
   @@index([createdAt])
 }
 
@@ -276,4 +286,30 @@ model SiteSetting {
   key       String   @unique
   value     Json
   updatedAt DateTime @updatedAt
+}
+
+/// Affectation d'un rôle du personnel. Une ligne par (utilisateur, rôle) ;
+/// la révocation renseigne revokedAt au lieu de supprimer (traçabilité).
+model StaffAssignment {
+  id          String    @id @default(cuid())
+  userId      String
+  role        StaffRole
+  grantedById String?
+  createdAt   DateTime  @default(now())
+  revokedAt   DateTime?
+  user        User      @relation("StaffAssignmentUser", fields: [userId], references: [id], onDelete: Cascade)
+  grantedBy   User?     @relation("StaffAssignmentGrantedBy", fields: [grantedById], references: [id], onDelete: SetNull)
+
+  @@unique([userId, role])
+  @@index([grantedById])
+}
+
+/// Compteur de limitation de tentatives (fenêtre fixe). La clé est toujours
+/// un hachage : aucune donnée brute (IP, email, matricule) n'y figure.
+model RateLimitBucket {
+  key         String   @id
+  count       Int      @default(0)
+  windowStart DateTime @default(now())
+
+  @@index([windowStart])
 }

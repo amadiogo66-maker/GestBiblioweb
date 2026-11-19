@@ -1,6 +1,7 @@
 import { compare, hash } from 'bcryptjs';
 import { NextResponse, type NextRequest } from 'next/server';
-import { getActiveAuthenticatedUser, jsonResponse, validationErrorResponse } from '@/lib/api';
+import { jsonResponse, validationErrorResponse } from '@/lib/api';
+import { requireActiveUser } from '@/lib/authz';
 import { prisma } from '@/lib/prisma';
 import { logger } from '@/lib/logger';
 import { changePasswordSchema } from '@/schemas/user';
@@ -9,11 +10,13 @@ export const runtime = 'nodejs';
 
 export async function PATCH(request: NextRequest): Promise<NextResponse> {
   try {
-    const user = await getActiveAuthenticatedUser();
+    const authz = await requireActiveUser();
 
-    if (!user) {
-      return jsonResponse({ success: false, message: 'Non authentifié' }, 401);
+    if (!authz.ok) {
+      return authz.response;
     }
+
+    const { user } = authz;
 
     const payload = await request.json();
     const parsed = changePasswordSchema.safeParse(payload);

@@ -1,3 +1,43 @@
+import type { NextRequest } from 'next/server';
 import { handlers } from '@/lib/auth';
+import { checkRateLimits, ipRateLimitKey, rateLimitKey, rateLimitedResponse } from '@/lib/rate-limit';
+import { RATE_LIMITS } from '@/lib/constants';
 
-export const { GET, POST } = handlers;
+export const { GET } = handlers;
+
+/**
+ * Limite les tentatives de connexion (par IP et par identifiant haché) AVANT
+ * qu'Auth.js n'exécute authorize(). En cas de dépassement : 429 + Retry-After.
+ * Le champ `url` est requis par next-auth/react signIn() pour exposer
+ * `error`/`code` au formulaire (code=rate_limited).
+ */
+export async function POST(request: NextRequest): Promise<Response> {
+  if (request.nextUrl.pathname.endsWith('/callback/credentials')) {
+    const identifier = await readIdentifier(request);
+    const retryAfter = await checkRateLimits([
+      { key: ipRateLimitKey('login', request.headers), rule: RATE_LIMITS.loginIp },
+      { key: rateLimitKey('login:identifier', identifier), rule: RATE_LIMITS.loginIdentifier },
+    ]);
+
+    if (retryAfter !== null) {
+      const url = new URL('/connexion', request.nextUrl.origin);
+      url.searchParams.set('error', 'CredentialsSignin');
+      url.searchParams.set('code', 'rate_limited');
+
+      return rateLimitedResponse(retryAfter, { url: url.toString() });
+    }
+  }
+
+  return handlers.POST(request);
+}
+
+async function readIdentifier(request: NextRequest): Promise<string> {
+  try {
+    const form = await request.clone().formData();
+    const value = form.get('username');
+
+    return typeof value === 'string' ? value : '';
+  } catch {
+    return '';
+  }
+}

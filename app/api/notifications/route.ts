@@ -1,6 +1,6 @@
-import { UserStatus } from '@prisma/client';
 import { NextResponse, type NextRequest } from 'next/server';
-import { getAuthenticatedUser, jsonResponse } from '@/lib/api';
+import { jsonResponse } from '@/lib/api';
+import { requireActiveUser } from '@/lib/authz';
 import { prisma } from '@/lib/prisma';
 import { logger } from '@/lib/logger';
 import { notificationSelect } from '@/lib/notifications';
@@ -9,11 +9,13 @@ export const runtime = 'nodejs';
 
 export async function GET(): Promise<NextResponse> {
   try {
-    const user = await getAuthenticatedUser();
+    const authz = await requireActiveUser();
 
-    if (!user || user.status !== UserStatus.ACTIVE) {
-      return jsonResponse({ success: false, message: 'Non authentifié' }, 401);
+    if (!authz.ok) {
+      return authz.response;
     }
+
+    const { user } = authz;
 
     const notifications = await prisma.notification.findMany({
       where: { userId: user.id },
@@ -30,11 +32,13 @@ export async function GET(): Promise<NextResponse> {
 
 export async function PATCH(request: NextRequest): Promise<NextResponse> {
   try {
-    const user = await getAuthenticatedUser();
+    const authz = await requireActiveUser();
 
-    if (!user || user.status !== UserStatus.ACTIVE) {
-      return jsonResponse({ success: false, message: 'Non authentifié' }, 401);
+    if (!authz.ok) {
+      return authz.response;
     }
+
+    const { user } = authz;
 
     const result = await prisma.notification.updateMany({
       where: {

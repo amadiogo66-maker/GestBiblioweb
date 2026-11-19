@@ -3,7 +3,6 @@ import type { ReactElement } from 'react';
 import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { ensureLibraryCard } from '@/lib/library-card';
-import { getCatalogueMetadata } from '@/lib/catalogue-data';
 import { ProfileForm } from '@/components/dashboard/ProfileForm';
 import { ChangePasswordForm } from '@/components/dashboard/ChangePasswordForm';
 import { LibraryCard } from '@/components/dashboard/LibraryCard';
@@ -17,7 +16,7 @@ export default async function ProfilPage(): Promise<ReactElement> {
     redirect('/connexion');
   }
 
-  const [profile, card, metadata] = await Promise.all([
+  const [profile, card] = await Promise.all([
     prisma.user.findUniqueOrThrow({
       where: { id: session.user.id },
       select: {
@@ -31,7 +30,6 @@ export default async function ProfilPage(): Promise<ReactElement> {
       },
     }),
     ensureLibraryCard(session.user.id),
-    getCatalogueMetadata(),
   ]);
 
   return (
@@ -43,7 +41,7 @@ export default async function ProfilPage(): Promise<ReactElement> {
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <div className="flex flex-col gap-6 lg:col-span-2">
-          <ProfileForm profile={profile} departments={metadata.departments} />
+          <ProfileForm profile={profile} />
           <ChangePasswordForm />
         </div>
         <LibraryCard card={card} />

@@ -1,7 +1,7 @@
-import { UserStatus } from '@prisma/client';
 import { NextResponse, type NextRequest } from 'next/server';
 import { listLoansSchema } from '@/schemas/loan';
-import { getAuthenticatedUser, jsonResponse, validationErrorResponse } from '@/lib/api';
+import { jsonResponse, validationErrorResponse } from '@/lib/api';
+import { requireActiveUser } from '@/lib/authz';
 import { prisma } from '@/lib/prisma';
 import { logger } from '@/lib/logger';
 import { loanSelect } from '@/lib/circulation';
@@ -11,11 +11,13 @@ export const runtime = 'nodejs';
 
 export async function GET(request: NextRequest): Promise<NextResponse> {
   try {
-    const user = await getAuthenticatedUser();
+    const authz = await requireActiveUser();
 
-    if (!user || user.status !== UserStatus.ACTIVE) {
-      return jsonResponse({ success: false, message: 'Non authentifié' }, 401);
+    if (!authz.ok) {
+      return authz.response;
     }
+
+    const { user } = authz;
 
     const query = Object.fromEntries(request.nextUrl.searchParams.entries());
     const parsed = listLoansSchema.safeParse(query);

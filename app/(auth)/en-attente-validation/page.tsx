@@ -7,6 +7,7 @@ import { prisma } from '@/lib/prisma';
 import { AuthLayout } from '@/components/auth/AuthLayout';
 import { SignOutButton } from '@/components/auth/SignOutButton';
 import { Button } from '@/components/ui/Button';
+import { BLOCKED_ACCOUNT_ROUTE } from '@/lib/constants';
 
 export const dynamic = 'force-dynamic';
 
@@ -27,9 +28,9 @@ export default async function EnAttenteValidationPage(): Promise<ReactElement> {
     select: { email: true, username: true, status: true },
   });
 
-  if (!user) redirect('/connexion');
+  if (!user) redirect(BLOCKED_ACCOUNT_ROUTE);
   if (user.status === 'ACTIVE') redirect('/tableau-de-bord');
-  if (user.status === 'SUSPENDED' || user.status === 'BANNED') redirect('/connexion?error=account_blocked');
+  if (user.status === 'SUSPENDED' || user.status === 'BANNED') redirect(BLOCKED_ACCOUNT_ROUTE);
 
   return (
     <AuthLayout
