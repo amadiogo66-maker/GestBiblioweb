@@ -7,6 +7,8 @@ export default defineConfig({
       '@': fileURLToPath(new URL('./', import.meta.url)),
     },
   },
+  // Runtime JSX automatique (comme Next.js) : permet de rendre les Server Components dans les tests.
+  esbuild: { jsx: 'automatic' },
   test: {
     environment: 'node',
     globals: false,

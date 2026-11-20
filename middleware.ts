@@ -2,7 +2,9 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { auth } from '@/lib/auth';
 import { BLOCKED_ACCOUNT_ROUTE, UNAUTHENTICATED_MESSAGE } from '@/lib/constants';
 
-const protectedRoutes = ['/tableau-de-bord', '/emprunts', '/reservations', '/profil', '/carte-bibliotheque'];
+// '/personnel' : session requise ici ; l'autorisation (affectation du personnel)
+// est décidée par le layout de l'espace en relisant la base, jamais par le JWT.
+const protectedRoutes = ['/tableau-de-bord', '/emprunts', '/reservations', '/profil', '/carte-bibliotheque', '/personnel'];
 const authPages = ['/connexion', '/inscription', '/mot-de-passe-oublie', '/reinitialiser-mot-de-passe'];
 const pendingRoute = '/en-attente-validation';
 

@@ -13,20 +13,26 @@ export interface ActivityEntry {
 }
 
 /**
+ * Données d'une entrée d'ActivityLog. À utiliser directement dans une
+ * transaction quand l'entrée doit être écrite avec l'action (tout ou rien).
+ */
+export function buildActivityLogData(entry: ActivityEntry): Prisma.ActivityLogUncheckedCreateInput {
+  return {
+    action: entry.action,
+    userId: entry.userId ?? null,
+    ipAddress: entry.headers ? getClientIp(entry.headers) : null,
+    userAgent: entry.headers?.get('user-agent') ?? null,
+    details: entry.details,
+  };
+}
+
+/**
  * Écrit une entrée d'ActivityLog. Ne lève jamais : un échec de journalisation
  * ne doit pas faire échouer l'action journalisée.
  */
 export async function logActivity(entry: ActivityEntry): Promise<void> {
   try {
-    await prisma.activityLog.create({
-      data: {
-        action: entry.action,
-        userId: entry.userId ?? null,
-        ipAddress: entry.headers ? getClientIp(entry.headers) : null,
-        userAgent: entry.headers?.get('user-agent') ?? null,
-        details: entry.details,
-      },
-    });
+    await prisma.activityLog.create({ data: buildActivityLogData(entry) });
   } catch (error) {
     logger.error('Activity log write failed', {
       action: entry.action,

@@ -21,7 +21,12 @@ export default async function DashboardLayout({ children }: DashboardLayoutProps
   }
 
   // One database lookup at the shared dashboard layout boundary per navigation.
-  const user = await prisma.user.findUnique({ where: { id: session.user.id }, select: { status: true } });
+  // Elle indique aussi si une affectation du personnel ACTIVE existe (lien vers
+  // /personnel) : décision relue en base, jamais depuis le JWT.
+  const user = await prisma.user.findUnique({
+    where: { id: session.user.id },
+    select: { status: true, staffAssignments: { where: { revokedAt: null }, select: { id: true }, take: 1 } },
+  });
 
   // Compte bloqué ou supprimé mais session encore valide : page publique dédiée
   // (rediriger vers /connexion bouclerait, le middleware y renvoyant tout
@@ -32,7 +37,7 @@ export default async function DashboardLayout({ children }: DashboardLayoutProps
 
   return (
     <div className="min-h-screen bg-accent">
-      <DashboardHeader firstName={session.user.firstName} />
+      <DashboardHeader firstName={session.user.firstName} showStaffLink={user.staffAssignments.length > 0} />
       <DashboardNav />
       <main className="py-10">
         <Container className="flex flex-col gap-8">{children}</Container>

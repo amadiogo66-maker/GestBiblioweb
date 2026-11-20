@@ -48,7 +48,14 @@ export const RATE_LIMITS = {
   forgotPasswordEmail: { limit: 5, windowMs: 60 * MINUTE_MS },
   resetPasswordIp: { limit: 60, windowMs: 15 * MINUTE_MS },
   contactIp: { limit: 30, windowMs: 60 * MINUTE_MS },
+  // Par membre du personnel (identifiant haché), toutes actions de modération confondues.
+  staffModeration: { limit: 30, windowMs: 15 * MINUTE_MS },
 } as const satisfies Record<string, RateLimitRule>;
+
+// --- Espace du personnel --------------------------------------------------------
+export const STAFF_ACCOUNTS_PAGE_SIZE = 20;
+export const STAFF_AUDIT_PAGE_SIZE = 30;
+export const STAFF_RECENT_ACTIONS = 20;
 
 /** Probabilité, à chaque requête limitée, de purger les compteurs expirés. */
 export const RATE_LIMIT_CLEANUP_PROBABILITY = 0.02;
