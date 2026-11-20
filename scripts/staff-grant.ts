@@ -10,6 +10,7 @@
 import { StaffRole } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { logActivity } from '../lib/activity-log';
+import { describeDatabaseTarget } from './db-target';
 
 type Action = 'grant' | 'revoke';
 
@@ -38,26 +39,12 @@ function parseArgs(argv: string[]): Args {
   return { action, email: email.trim().toLowerCase(), role: role.toUpperCase() as StaffRole, confirmed };
 }
 
-/** Hôte, port et base visés — jamais l'utilisateur ni le mot de passe. */
-function describeDatabase(): string {
-  const raw = process.env.DATABASE_URL;
-
-  if (!raw) return 'inconnue (DATABASE_URL non définie)';
-
-  try {
-    const url = new URL(raw);
-    return `${url.hostname}${url.port ? `:${url.port}` : ''}${url.pathname}`;
-  } catch {
-    return 'illisible (DATABASE_URL invalide)';
-  }
-}
-
 async function main(): Promise<void> {
   const args = parseArgs(process.argv.slice(2));
 
   // Prisma a chargé .env à l'import (sans écraser une variable de session) ;
   // l'hôte est affiché avant toute connexion.
-  console.log(`Base visée : ${describeDatabase()}`);
+  console.log(`Base visée : ${describeDatabaseTarget()}`);
 
   const user = await prisma.user.findUnique({
     where: { email: args.email },

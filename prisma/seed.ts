@@ -1,6 +1,7 @@
 import { PrismaClient, NewsCategory } from '@prisma/client';
 import { hash } from 'bcryptjs';
 import { logger } from '../lib/logger';
+import { STRUCTURE_TRANSACTION_OPTIONS, loadUlStructure } from './data/load-ul-structure';
 
 const prisma = new PrismaClient();
 
@@ -321,6 +322,9 @@ async function seedTestUser(): Promise<void> {
 }
 
 async function main(): Promise<void> {
+  // Structure officielle (facultés, départements, programmes, alias) : même
+  // fonction que `npm run db:seed-structure`, idempotente.
+  await prisma.$transaction((tx) => loadUlStructure(tx), STRUCTURE_TRANSACTION_OPTIONS);
   await seedSettings();
   await seedBooks();
   await seedNews();

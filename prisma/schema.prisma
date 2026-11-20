@@ -99,11 +99,18 @@ model User {
   sessions      Session[]
   staffAssignments        StaffAssignment[] @relation("StaffAssignmentUser")
   staffAssignmentsGranted StaffAssignment[] @relation("StaffAssignmentGrantedBy")
+  /// Rattachement officiel facultatif. La colonne texte `department` reste la source de lecture.
+  departmentId       String?
+  programId          String?
+  officialDepartment Department? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  officialProgram    Program?    @relation(fields: [programId], references: [id], onDelete: SetNull)
 
   @@index([email])
   @@index([username])
   @@index([status])
   @@index([role])
+  @@index([departmentId])
+  @@index([programId])
 }
 
 model LibraryMember {
@@ -120,8 +127,15 @@ model LibraryMember {
   syncedAt          DateTime  @updatedAt
   createdAt         DateTime  @default(now())
   user              User?
+  /// Rattachement officiel facultatif. La colonne texte `departement` reste la source de lecture.
+  departmentId       String?
+  programId          String?
+  officialDepartment Department? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  officialProgram    Program?    @relation(fields: [programId], references: [id], onDelete: SetNull)
 
   @@index([inscriptionActive])
+  @@index([departmentId])
+  @@index([programId])
 }
 
 model Account {
@@ -183,11 +197,15 @@ model Book {
   updatedAt       DateTime      @updatedAt
   loans           Loan[]
   reservations    Reservation[]
+  /// Rattachement officiel facultatif. La colonne texte `department` reste la source de lecture.
+  departmentId       String?
+  officialDepartment Department? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
 
   @@index([title])
   @@index([author])
   @@index([isbn])
   @@index([department])
+  @@index([departmentId])
   @@index([category])
   @@index([status])
   @@index([isNew])
@@ -312,4 +330,62 @@ model RateLimitBucket {
   windowStart DateTime @default(now())
 
   @@index([windowStart])
+}
+
+// --- Structure officielle de l'Université de Labé ----------------------------
+// Référentiel chargé depuis prisma/data/ul-structure.ts (slugs figés).
+
+enum ProgramLevel {
+  LICENCE
+  LICENCE_FONDAMENTALE
+  DUT
+}
+
+model Faculty {
+  id          String       @id @default(cuid())
+  slug        String       @unique
+  name        String
+  sortOrder   Int
+  departments Department[]
+}
+
+model Department {
+  id        String            @id @default(cuid())
+  slug      String            @unique
+  name      String
+  facultyId String
+  sortOrder Int
+  faculty   Faculty           @relation(fields: [facultyId], references: [id])
+  programs  Program[]
+  aliases   DepartmentAlias[]
+  users     User[]
+  members   LibraryMember[]
+  books     Book[]
+
+  @@index([facultyId])
+}
+
+model Program {
+  id           String          @id @default(cuid())
+  slug         String
+  name         String
+  level        ProgramLevel
+  departmentId String
+  sortOrder    Int
+  department   Department      @relation(fields: [departmentId], references: [id])
+  users        User[]
+  members      LibraryMember[]
+
+  @@unique([departmentId, slug])
+}
+
+/// Variante d'écriture (déjà normalisée) d'un nom de département → département officiel.
+model DepartmentAlias {
+  id           String     @id @default(cuid())
+  normalized   String     @unique
+  departmentId String
+  note         String?
+  department   Department @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+
+  @@index([departmentId])
 }
