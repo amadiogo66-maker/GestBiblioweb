@@ -96,3 +96,42 @@ export async function resolveDepartmentId(
 
   return (await resolveDepartmentIds(db, [value])).get(value) ?? null;
 }
+
+/** Nombre maximal de cas non résolus détaillés dans une réponse de webhook. */
+export const UNRESOLVED_DEPARTMENT_DETAILS_LIMIT = 50;
+
+/**
+ * Collecte des libellés de département reçus mais non reconnus : le décompte
+ * est complet, le détail limité aux premiers cas.
+ */
+export class UnresolvedDepartments<Key extends string> {
+  count = 0;
+  readonly details: Array<Record<Key, string> & { value: string }> = [];
+
+  add(entry: Record<Key, string> & { value: string }): void {
+    this.count += 1;
+
+    if (this.details.length < UNRESOLVED_DEPARTMENT_DETAILS_LIMIT) {
+      this.details.push(entry);
+    }
+  }
+}
+
+/**
+ * Résout un libellé reçu d'un webhook et signale un libellé renseigné mais
+ * inconnu. Vide ou absent : null, sans signalement.
+ */
+export function resolveReceivedDepartment<Key extends string>(
+  index: DepartmentIndex,
+  value: string | null | undefined,
+  unresolved: UnresolvedDepartments<Key>,
+  reference: Record<Key, string>
+): string | null {
+  const departmentId = lookupDepartmentId(index, value);
+
+  if (!departmentId && value && value.trim()) {
+    unresolved.add({ ...reference, value });
+  }
+
+  return departmentId;
+}

@@ -5,6 +5,7 @@ import { bookSelect, toBookCreateData } from '@/lib/books';
 import { jsonResponse, prismaErrorResponse, validationErrorResponse } from '@/lib/api';
 import { prisma } from '@/lib/prisma';
 import { logger } from '@/lib/logger';
+import { UnresolvedDepartments, loadDepartmentIndex, resolveReceivedDepartment } from '@/lib/departments';
 
 export const runtime = 'nodejs';
 
@@ -59,11 +60,20 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       return jsonResponse({ success: true, message: 'Livre supprimé', data: deletedBook });
     }
 
+    // Le texte reste la source : le département officiel est recalculé à
+    // chaque synchronisation ; un libellé inconnu est accepté (id null) et signalé.
+    const unresolvedDepartments = new UnresolvedDepartments<'externalId'>();
+    const departmentId = resolveReceivedDepartment(
+      await loadDepartmentIndex(prisma),
+      book.department,
+      unresolvedDepartments,
+      { externalId: book.externalId }
+    );
     const data = toBookCreateData(book);
     const syncedBook = await prisma.book.upsert({
       where: { externalId: book.externalId },
-      create: data,
-      update: data,
+      create: { ...data, ...(departmentId ? { officialDepartment: { connect: { id: departmentId } } } : {}) },
+      update: { ...data, officialDepartment: departmentId ? { connect: { id: departmentId } } : { disconnect: true } },
       select: bookSelect,
     });
 
@@ -72,14 +82,23 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         action: action === 'CREATE' ? 'book.sync.create' : 'book.sync.update',
         ipAddress: request.headers.get('x-forwarded-for'),
         userAgent: request.headers.get('user-agent'),
-        details: { externalId: syncedBook.externalId, isbn: syncedBook.isbn },
+        details: {
+          externalId: syncedBook.externalId,
+          isbn: syncedBook.isbn,
+          unresolvedDepartments: unresolvedDepartments.count,
+        },
       },
     });
 
     return jsonResponse({
       success: true,
       message: action === 'CREATE' ? 'Livre synchronisé' : 'Livre mis à jour',
-      data: syncedBook,
+      data: {
+        ...syncedBook,
+        // Champs ajoutés (optionnels pour les appelants existants).
+        unresolvedDepartments: unresolvedDepartments.count,
+        unresolvedDetails: unresolvedDepartments.details,
+      },
     });
   } catch (error) {
     const prismaResponse = prismaErrorResponse(error);

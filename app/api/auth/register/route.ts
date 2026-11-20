@@ -81,6 +81,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           lastName: member.nom,
           role: member.role,
           department: member.departement,
+          departmentId: member.departmentId,
           matricule: member.matricule,
           status: UserStatus.ACTIVE,
           libraryCard,
