@@ -3,7 +3,7 @@ import type { ReactElement, ReactNode } from 'react';
 import { Container } from '@/components/ui/Container';
 import { StaffHeader } from '@/components/staff/StaffHeader';
 import { StaffNav } from '@/components/staff/StaffNav';
-import { loadStaffPageContext, requireStaffPage } from '@/lib/staff-page';
+import { loadStaffPageContext, requireStaffPageIdentity } from '@/lib/staff-page';
 
 // Toujours rendu à la demande : l'accès dépend de la base à chaque requête.
 export const dynamic = 'force-dynamic';
@@ -23,14 +23,16 @@ export async function generateMetadata(): Promise<Metadata> {
 /**
  * Espace du personnel. Accès décidé en relisant la base (affectation ACTIVE) ;
  * sinon notFound() : l'existence de l'espace n'est pas révélée.
+ * Ce layout n'exige PAS la double authentification (il enveloppe aussi les
+ * pages /personnel/securite) : le groupe (protected) l'exige pour le reste.
  */
 export default async function StaffLayout({ children }: { children: ReactNode }): Promise<ReactElement> {
-  const context = await requireStaffPage();
+  const context = await requireStaffPageIdentity();
 
   return (
     <div className="min-h-screen bg-accent">
       <StaffHeader fullName={`${context.user.firstName} ${context.user.lastName}`} roles={context.staffRoles} />
-      <StaffNav isAdmin={context.isAdmin} />
+      <StaffNav isAdmin={context.isAdmin} verified={context.mfaState === 'verified'} />
       <main className="py-8">
         <Container className="flex flex-col gap-8">{children}</Container>
       </main>

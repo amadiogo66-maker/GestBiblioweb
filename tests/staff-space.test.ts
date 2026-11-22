@@ -7,6 +7,11 @@ import { prisma } from './helpers/local-db';
 
 // Session simulée : seule la source de l'identifiant ; l'autorisation relit la base.
 vi.mock('@/lib/auth', () => ({ auth: vi.fn() }));
+// Cookie de preuve de la requête simulée.
+const cookieJar = vi.hoisted(() => ({ proof: undefined as string | undefined }));
+vi.mock('next/headers', () => ({
+  cookies: async () => ({ get: () => (cookieJar.proof ? { value: cookieJar.proof } : undefined) }),
+}));
 // Le composant client de modération utilise le routeur : neutralisé pour le rendu serveur.
 vi.mock('next/navigation', async (importOriginal) => ({
   ...(await importOriginal<typeof import('next/navigation')>()),
@@ -17,12 +22,13 @@ const { auth } = await import('@/lib/auth');
 const { PATCH } = await import('@/app/api/staff/accounts/[id]/status/route');
 const { POST: membersSync } = await import('@/app/api/members/sync/route');
 const { default: StaffLayout } = await import('@/app/(staff)/personnel/layout');
-const { default: DashboardPage } = await import('@/app/(staff)/personnel/page');
-const { default: AccountsPage } = await import('@/app/(staff)/personnel/comptes/page');
-const { default: AccountDetailPage } = await import('@/app/(staff)/personnel/comptes/[id]/page');
-const { default: JournalPage } = await import('@/app/(staff)/personnel/journal/page');
+const { default: DashboardPage } = await import('@/app/(staff)/personnel/(protected)/page');
+const { default: AccountsPage } = await import('@/app/(staff)/personnel/(protected)/comptes/page');
+const { default: AccountDetailPage } = await import('@/app/(staff)/personnel/(protected)/comptes/[id]/page');
+const { default: JournalPage } = await import('@/app/(staff)/personnel/(protected)/journal/page');
 const { rateLimitKey } = await import('@/lib/rate-limit');
 const { loadStaffPageContext } = await import('@/lib/staff-page');
+const { createMfaProof } = await import('@/lib/staff-mfa');
 
 const suffix = randomUUID().slice(0, 8);
 const startedAt = new Date();
@@ -64,11 +70,14 @@ async function createAccount(
     await prisma.staffAssignment.create({
       data: { userId: user.id, role: options.staff, revokedAt: options.revoked ? new Date() : null },
     });
+    // MFA valide pour tout le personnel : les refus testés ici viennent du rôle ou du statut.
+    await prisma.staffMfa.create({ data: { userId: user.id, secretCipher: 'fixture', enabledAt: new Date(Date.now() - 1000) } });
   }
 }
 
 /** Session de l'utilisateur `key` (null : non connecté). `claims` simule un JWT trompeur. */
 function as(key: string | null, claims: Record<string, unknown> = {}): void {
+  cookieJar.proof = key ? createMfaProof(ids[key], 1) : undefined;
   authMock.mockResolvedValue(key ? { user: { id: ids[key], status: 'ACTIVE', ...claims }, expires: '2099-01-01' } : null);
 }
 

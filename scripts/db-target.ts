@@ -20,3 +20,11 @@ export function describeDatabaseTarget(rawUrl = process.env.DATABASE_URL): strin
 export function hasFlag(argv: readonly string[], flag: string): boolean {
   return argv.includes(flag);
 }
+
+/** Affiche le code d'activation : seule apparition en clair (il est stocké haché). */
+export function printActivationCode(code: string): void {
+  console.log('');
+  console.log("Code d'activation de la double authentification (valable 24 h, affiché UNE seule fois) :");
+  console.log(`  ${code}`);
+  console.log('À remettre à la personne par un canal distinct de son mot de passe.');
+}

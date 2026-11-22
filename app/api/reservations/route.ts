@@ -2,7 +2,7 @@ import { BookStatus, LoanStatus, ReservationStatus } from '@prisma/client';
 import { NextResponse, type NextRequest } from 'next/server';
 import { createReservationSchema, listReservationsSchema } from '@/schemas/reservation';
 import { jsonResponse, validationErrorResponse } from '@/lib/api';
-import { requireActiveUser } from '@/lib/authz';
+import { rejectCrossOrigin, requireActiveUser } from '@/lib/authz';
 import { prisma } from '@/lib/prisma';
 import { logger } from '@/lib/logger';
 import { createReservationExpiryDate, getInitialReservationStatus, reservationSelect } from '@/lib/circulation';
@@ -66,6 +66,12 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 }
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
+  const crossOrigin = rejectCrossOrigin(request);
+
+  if (crossOrigin) {
+    return crossOrigin;
+  }
+
   try {
     const authz = await requireActiveUser();
 

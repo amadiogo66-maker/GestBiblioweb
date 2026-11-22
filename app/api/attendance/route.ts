@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { attendanceCheckInSchema, listAttendancesSchema } from '@/schemas/attendance';
 import { jsonResponse, validationErrorResponse } from '@/lib/api';
-import { requireActiveUser } from '@/lib/authz';
+import { rejectCrossOrigin, requireActiveUser } from '@/lib/authz';
 import { prisma } from '@/lib/prisma';
 import { logger } from '@/lib/logger';
 import type { PaginatedResponse } from '@/types';
@@ -60,6 +60,12 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 }
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
+  const crossOrigin = rejectCrossOrigin(request);
+
+  if (crossOrigin) {
+    return crossOrigin;
+  }
+
   try {
     const authz = await requireActiveUser();
 

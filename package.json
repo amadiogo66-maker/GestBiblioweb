@@ -27,6 +27,7 @@
     "db:studio": "prisma studio",
     "staff:grant": "tsx scripts/staff-grant.ts grant",
     "staff:revoke": "tsx scripts/staff-grant.ts revoke",
+    "staff:mfa-reset": "tsx scripts/staff-mfa-reset.ts",
     "db:start": "docker compose up -d --wait",
     "db:stop": "docker compose down",
     "db:reset": "docker compose down -v && docker compose up -d --wait && npx prisma migrate dev && npx prisma db seed"
@@ -42,6 +43,7 @@
     "lucide-react": "0.468.0",
     "next": "^15.1.7",
     "next-auth": "^5.0.0-beta.32",
+    "otpauth": "9.6.0",
     "prisma": "5.15.0",
     "qrcode": "1.5.3",
     "react": "19.0.0",

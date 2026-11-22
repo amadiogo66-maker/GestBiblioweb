@@ -50,7 +50,13 @@ export const RATE_LIMITS = {
   contactIp: { limit: 30, windowMs: 60 * MINUTE_MS },
   // Par membre du personnel (identifiant haché), toutes actions de modération confondues.
   staffModeration: { limit: 30, windowMs: 15 * MINUTE_MS },
+  // Double authentification : seuls les ÉCHECS sont comptés.
+  mfaFailuresUser: { limit: 5, windowMs: 15 * MINUTE_MS },
+  mfaFailuresIp: { limit: 20, windowMs: 15 * MINUTE_MS },
 } as const satisfies Record<string, RateLimitRule>;
+
+export const MFA_REQUIRED_CODE = 'mfa_required';
+export const CROSS_ORIGIN_MESSAGE = 'Origine de la requête non autorisée';
 
 // --- Espace du personnel --------------------------------------------------------
 export const STAFF_ACCOUNTS_PAGE_SIZE = 20;

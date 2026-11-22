@@ -128,3 +128,23 @@ export async function enforceRateLimits(checks: RateLimitCheck[]): Promise<NextR
 
   return retryAfter === null ? null : rateLimitedResponse(retryAfter);
 }
+
+/**
+ * Lecture SANS incrément : délai d'attente si le compteur `key` a déjà atteint
+ * le seuil dans sa fenêtre courante, sinon null. Sert à ne compter que les
+ * échecs (on vérifie avant, on incrémente seulement après un échec).
+ */
+export async function getRateLimitRetryAfter(key: string, rule: RateLimitRule): Promise<number | null> {
+  const windowSeconds = rule.windowMs / 1000;
+  const rows = await prisma.$queryRaw<Array<{ count: number; retry_after: number }>>`
+    SELECT "count",
+      GREATEST(1, CEIL(EXTRACT(EPOCH FROM (
+        "windowStart" + make_interval(secs => ${windowSeconds}::float8) - (now() AT TIME ZONE 'UTC')
+      ))))::int AS retry_after
+    FROM "RateLimitBucket"
+    WHERE "key" = ${key}
+      AND "windowStart" > (now() AT TIME ZONE 'UTC') - make_interval(secs => ${windowSeconds}::float8)
+  `;
+
+  return rows[0] && rows[0].count >= rule.limit ? rows[0].retry_after : null;
+}

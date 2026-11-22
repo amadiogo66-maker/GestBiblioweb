@@ -3,6 +3,8 @@ export interface ApiResponse<T> {
   data?: T;
   message?: string;
   errors?: Record<string, string[]>;
+  /** Code machine facultatif (ex. 'mfa_required'). */
+  code?: string;
 }
 
 export interface PaginatedResponse<T> {

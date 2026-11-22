@@ -1,7 +1,7 @@
 import { LoanStatus } from '@prisma/client';
 import { NextResponse, type NextRequest } from 'next/server';
 import { jsonResponse } from '@/lib/api';
-import { requireActiveUser } from '@/lib/authz';
+import { rejectCrossOrigin, requireActiveUser } from '@/lib/authz';
 import { prisma } from '@/lib/prisma';
 import { logger } from '@/lib/logger';
 import { createRenewedDueDate, isRenewableLoan, loanSelect } from '@/lib/circulation';
@@ -15,6 +15,12 @@ interface RenewLoanRouteContext {
 }
 
 export async function PATCH(request: NextRequest, context: RenewLoanRouteContext): Promise<NextResponse> {
+  const crossOrigin = rejectCrossOrigin(request);
+
+  if (crossOrigin) {
+    return crossOrigin;
+  }
+
   try {
     const authz = await requireActiveUser();
 

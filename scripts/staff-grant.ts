@@ -10,7 +10,8 @@
 import { StaffRole } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { logActivity } from '../lib/activity-log';
-import { describeDatabaseTarget } from './db-target';
+import { issueActivationCode, removeStaffMfa } from '../lib/staff-mfa-store';
+import { describeDatabaseTarget, printActivationCode } from './db-target';
 
 type Action = 'grant' | 'revoke';
 
@@ -63,6 +64,8 @@ async function main(): Promise<void> {
     if (user.status !== 'ACTIVE') usage(`le compte est ${user.status} : seul un compte ACTIVE peut recevoir un rôle`);
     if (isActiveAssignment) {
       console.log(`Rien à faire : ${args.email} a déjà le rôle ${args.role}.`);
+      // Rôle déjà présent sans MFA active : permet de remplacer un code d'activation expiré.
+      await issueCodeIfNeeded(user.id, args.confirmed);
       return;
     }
   } else if (!isActiveAssignment) {
@@ -77,6 +80,8 @@ async function main(): Promise<void> {
     return;
   }
 
+  let mfaRemoved = false;
+
   if (args.action === 'grant') {
     // Ré-attribution après révocation : on réactive la ligne existante (unique userId+role).
     await prisma.staffAssignment.upsert({
@@ -85,19 +90,54 @@ async function main(): Promise<void> {
       update: { revokedAt: null },
     });
   } else {
-    await prisma.staffAssignment.update({
-      where: { userId_role: { userId: user.id, role: args.role } },
-      data: { revokedAt: new Date() },
+    // Dernière affectation active révoquée : secret, codes de secours et code d'activation disparaissent.
+    mfaRemoved = await prisma.$transaction(async (tx) => {
+      await tx.staffAssignment.update({
+        where: { userId_role: { userId: user.id, role: args.role } },
+        data: { revokedAt: new Date() },
+      });
+      const remaining = await tx.staffAssignment.count({ where: { userId: user.id, revokedAt: null } });
+
+      if (remaining > 0) {
+        return false;
+      }
+
+      await removeStaffMfa(tx, user.id);
+      return true;
     });
   }
 
   await logActivity({
     action: args.action === 'grant' ? 'staff.grant' : 'staff.revoke',
     userId: user.id,
-    details: { role: args.role, source: 'cli' },
+    details: { role: args.role, source: 'cli', ...(mfaRemoved ? { mfaRemoved: true } : {}) },
   });
 
   console.log(`Fait : ${verb.toLowerCase()} ${args.role} — ${args.email}.`);
+
+  if (mfaRemoved) {
+    console.log('Dernière affectation révoquée : double authentification supprimée.');
+  }
+
+  if (args.action === 'grant') {
+    await issueCodeIfNeeded(user.id, true);
+  }
+}
+
+/** Compte sans MFA active : crée un code d'activation, affiché UNE seule fois. */
+async function issueCodeIfNeeded(userId: string, confirmed: boolean): Promise<void> {
+  const mfa = await prisma.staffMfa.findUnique({ where: { userId }, select: { enabledAt: true } });
+
+  if (mfa?.enabledAt) {
+    return;
+  }
+
+  if (!confirmed) {
+    console.log("Simulation : un code d'activation de la double authentification serait créé.");
+    return;
+  }
+
+  printActivationCode(await issueActivationCode(prisma, userId));
 }
 
 main()

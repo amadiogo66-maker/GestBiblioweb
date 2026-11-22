@@ -25,3 +25,8 @@ export function createMemberVerificationIdentifier(matricule: string): string {
   return `member-verification:${matricule}`;
 }
 
+
+/** Code d'activation de la double authentification d'un membre du personnel. */
+export function createStaffMfaActivationIdentifier(userId: string): string {
+  return `staff-mfa-activation:${userId}`;
+}

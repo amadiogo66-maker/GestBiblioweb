@@ -1,18 +1,25 @@
 import Link from 'next/link';
-import { History, LayoutDashboard, Users } from 'lucide-react';
+import { History, KeyRound, LayoutDashboard, Users } from 'lucide-react';
 import type { ReactElement } from 'react';
 import { Container } from '@/components/ui/Container';
 
 interface StaffNavProps {
   /** Le journal n'est proposé qu'aux administrateurs (la page le vérifie aussi en base). */
   isAdmin: boolean;
+  /** Double authentification vérifiée : sinon seul le lien « Sécurité » est utile. */
+  verified: boolean;
 }
 
-export function StaffNav({ isAdmin }: StaffNavProps): ReactElement {
+export function StaffNav({ isAdmin, verified }: StaffNavProps): ReactElement {
   const items = [
-    { href: '/personnel', label: 'Tableau de bord', icon: LayoutDashboard },
-    { href: '/personnel/comptes', label: 'Comptes', icon: Users },
-    ...(isAdmin ? [{ href: '/personnel/journal', label: 'Journal', icon: History }] : []),
+    ...(verified
+      ? [
+          { href: '/personnel', label: 'Tableau de bord', icon: LayoutDashboard },
+          { href: '/personnel/comptes', label: 'Comptes', icon: Users },
+          ...(isAdmin ? [{ href: '/personnel/journal', label: 'Journal', icon: History }] : []),
+        ]
+      : []),
+    { href: '/personnel/securite', label: 'Sécurité', icon: KeyRound },
   ];
 
   return (

@@ -1,9 +1,8 @@
 import type { NextRequest, NextResponse } from 'next/server';
 import { jsonResponse, validationErrorResponse } from '@/lib/api';
-import { requireStaff } from '@/lib/authz';
+import { rejectCrossOrigin, requireStaff } from '@/lib/authz';
 import { prisma } from '@/lib/prisma';
 import { logger } from '@/lib/logger';
-import { isSameOriginRequest } from '@/lib/origin';
 import { enforceRateLimits, rateLimitKey } from '@/lib/rate-limit';
 import { buildActivityLogData } from '@/lib/activity-log';
 import { evaluateModeration } from '@/lib/staff-moderation';
@@ -21,12 +20,15 @@ class StatusChangedError extends Error {}
 
 /**
  * Modération d'un compte par le personnel (suspendre, bannir, réactiver).
- * Ordre des contrôles : Origin (anti-CSRF) → personnel actif relu en base →
- * limitation par acteur → corps → règles → transaction (statut + journal).
+ * Ordre des contrôles : Origin (anti-CSRF) → personnel actif relu en base et
+ * double authentification vérifiée → limitation par acteur → corps → règles →
+ * transaction (statut + journal).
  */
 export async function PATCH(request: NextRequest, context: RouteContext): Promise<NextResponse> {
-  if (!isSameOriginRequest(request.headers)) {
-    return jsonResponse({ success: false, message: 'Origine de la requête non autorisée' }, 403);
+  const crossOrigin = rejectCrossOrigin(request);
+
+  if (crossOrigin) {
+    return crossOrigin;
   }
 
   const staff = await requireStaff();

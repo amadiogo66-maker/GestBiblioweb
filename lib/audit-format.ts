@@ -23,6 +23,7 @@ const DETAIL_LABELS: Record<string, string> = {
   userDepartmentsUpdated: 'Départements de comptes alignés',
   externalId: 'Référence livre',
   method: 'Méthode',
+  stage: 'Étape',
 };
 
 const ACTION_LABELS: Record<string, string> = {
@@ -36,6 +37,12 @@ const ACTION_LABELS: Record<string, string> = {
   'auth.login.blocked': 'Connexion refusée (compte bloqué)',
   'auth.register': 'Inscription',
   'members.sync': 'Synchronisation des membres',
+  'auth.mfa.enrolled': 'Double authentification activée',
+  'auth.mfa.verify.success': 'Double authentification réussie',
+  'auth.mfa.verify.failed': 'Double authentification échouée',
+  'auth.mfa.recovery_used': 'Code de secours utilisé',
+  'auth.mfa.recovery_regenerated': 'Codes de secours régénérés',
+  'auth.mfa.reset': 'Double authentification réinitialisée',
 };
 
 const CLI_ACTIONS = new Set(['staff.grant', 'staff.revoke']);

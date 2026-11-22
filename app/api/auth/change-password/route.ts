@@ -1,7 +1,7 @@
 import { compare, hash } from 'bcryptjs';
 import { NextResponse, type NextRequest } from 'next/server';
 import { jsonResponse, validationErrorResponse } from '@/lib/api';
-import { requireActiveUser } from '@/lib/authz';
+import { rejectCrossOrigin, requireActiveUser } from '@/lib/authz';
 import { prisma } from '@/lib/prisma';
 import { logger } from '@/lib/logger';
 import { changePasswordSchema } from '@/schemas/user';
@@ -9,6 +9,12 @@ import { changePasswordSchema } from '@/schemas/user';
 export const runtime = 'nodejs';
 
 export async function PATCH(request: NextRequest): Promise<NextResponse> {
+  const crossOrigin = rejectCrossOrigin(request);
+
+  if (crossOrigin) {
+    return crossOrigin;
+  }
+
   try {
     const authz = await requireActiveUser();
 
@@ -25,7 +31,9 @@ export async function PATCH(request: NextRequest): Promise<NextResponse> {
       return validationErrorResponse(parsed.error);
     }
 
-    const isCurrentPasswordValid = await compare(parsed.data.currentPassword, user.password);
+    // Requête dédiée au hachage : les helpers d'autorisation ne le chargent jamais.
+    const credentials = await prisma.user.findUniqueOrThrow({ where: { id: user.id }, select: { password: true } });
+    const isCurrentPasswordValid = await compare(parsed.data.currentPassword, credentials.password);
 
     if (!isCurrentPasswordValid) {
       return jsonResponse(

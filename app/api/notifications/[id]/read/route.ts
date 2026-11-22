@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { jsonResponse } from '@/lib/api';
-import { requireActiveUser } from '@/lib/authz';
+import { rejectCrossOrigin, requireActiveUser } from '@/lib/authz';
 import { prisma } from '@/lib/prisma';
 import { logger } from '@/lib/logger';
 import { notificationSelect } from '@/lib/notifications';
@@ -14,6 +14,12 @@ interface ReadNotificationRouteContext {
 }
 
 export async function PATCH(request: NextRequest, context: ReadNotificationRouteContext): Promise<NextResponse> {
+  const crossOrigin = rejectCrossOrigin(request);
+
+  if (crossOrigin) {
+    return crossOrigin;
+  }
+
   try {
     const authz = await requireActiveUser();
 

@@ -2,6 +2,7 @@ import type { NextRequest } from 'next/server';
 import { handlers } from '@/lib/auth';
 import { checkRateLimits, ipRateLimitKey, rateLimitKey, rateLimitedResponse } from '@/lib/rate-limit';
 import { RATE_LIMITS } from '@/lib/constants';
+import { clearedMfaProofCookieHeader } from '@/lib/staff-mfa-session';
 
 export const { GET } = handlers;
 
@@ -28,7 +29,17 @@ export async function POST(request: NextRequest): Promise<Response> {
     }
   }
 
-  return handlers.POST(request);
+  const response = await handlers.POST(request);
+
+  // Déconnexion : la preuve de double authentification du personnel est effacée.
+  if (request.nextUrl.pathname.endsWith('/signout')) {
+    const headers = new Headers(response.headers);
+    headers.append('Set-Cookie', clearedMfaProofCookieHeader());
+
+    return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
+  }
+
+  return response;
 }
 
 async function readIdentifier(request: NextRequest): Promise<string> {

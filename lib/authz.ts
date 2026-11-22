@@ -1,24 +1,36 @@
 import type { NextResponse } from 'next/server';
-import type { StaffRole, User } from '@prisma/client';
+import type { StaffRole } from '@prisma/client';
 import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { jsonResponse } from '@/lib/api';
-import { FORBIDDEN_MESSAGE, UNAUTHENTICATED_MESSAGE } from '@/lib/constants';
+import { isSameOriginRequest } from '@/lib/origin';
+import { publicUserSelect, type PublicUser } from '@/lib/user-select';
+import { getStaffMfaState } from '@/lib/staff-mfa-session';
+import { CROSS_ORIGIN_MESSAGE, FORBIDDEN_MESSAGE, MFA_REQUIRED_CODE, UNAUTHENTICATED_MESSAGE } from '@/lib/constants';
 import type { ApiResponse } from '@/types';
 
 type Denied = { ok: false; response: NextResponse<ApiResponse<never>> };
 
-export type ActiveUserResult = { ok: true; user: User } | Denied;
-export type StaffResult = { ok: true; user: User; staffRoles: StaffRole[] } | Denied;
+export type ActiveUserResult = { ok: true; user: PublicUser } | Denied;
+export type StaffResult = { ok: true; user: PublicUser; staffRoles: StaffRole[] } | Denied;
 
-function deny(status: 401 | 403, message: string): Denied {
-  return { ok: false, response: jsonResponse({ success: false, message }, status) };
+function deny(status: 401 | 403, message: string, code?: string): Denied {
+  return { ok: false, response: jsonResponse({ success: false, message, ...(code ? { code } : {}) }, status) };
+}
+
+/**
+ * Anti-CSRF des mutations qui dépendent de la session : Origin doit désigner
+ * le même hôte (Host ou X-Forwarded-Host du reverse proxy). Sinon 403 JSON.
+ */
+export function rejectCrossOrigin(request: Request): NextResponse<ApiResponse<never>> | null {
+  return isSameOriginRequest(request.headers) ? null : jsonResponse({ success: false, message: CROSS_ORIGIN_MESSAGE }, 403);
 }
 
 /**
  * Utilisateur de la session, relu en base, autorisé seulement s'il est ACTIVE.
  * Le JWT ne sert qu'à connaître l'identifiant : un statut changé en base
- * (suspension, bannissement) s'applique immédiatement.
+ * (suspension, bannissement) s'applique immédiatement. Champs explicites :
+ * jamais le mot de passe ni le QR code.
  */
 export async function requireActiveUser(): Promise<ActiveUserResult> {
   const session = await auth();
@@ -27,7 +39,7 @@ export async function requireActiveUser(): Promise<ActiveUserResult> {
     return deny(401, UNAUTHENTICATED_MESSAGE);
   }
 
-  const user = await prisma.user.findUnique({ where: { id: session.user.id } });
+  const user = await prisma.user.findUnique({ where: { id: session.user.id }, select: publicUserSelect });
 
   if (!user || user.status !== 'ACTIVE') {
     return deny(401, UNAUTHENTICATED_MESSAGE);
@@ -38,10 +50,10 @@ export async function requireActiveUser(): Promise<ActiveUserResult> {
 
 /**
  * Membre du personnel actif ayant au moins un des rôles demandés (ou n'importe
- * quel rôle si aucun n'est précisé). Les affectations sont toujours relues en
- * base, jamais dans le JWT ; les affectations révoquées sont ignorées.
+ * quel rôle), SANS contrôle de double authentification. Réservé aux routes qui
+ * mettent en place ou vérifient la double authentification elle-même.
  */
-export async function requireStaff(...roles: StaffRole[]): Promise<StaffResult> {
+export async function requireStaffIdentity(...roles: StaffRole[]): Promise<StaffResult> {
   const active = await requireActiveUser();
 
   if (!active.ok) {
@@ -62,4 +74,24 @@ export async function requireStaff(...roles: StaffRole[]): Promise<StaffResult> 
   }
 
   return { ok: true, user: active.user, staffRoles: assignments.map((assignment) => assignment.role) };
+}
+
+/**
+ * Membre du personnel actif (rôles relus en base, affectations révoquées
+ * ignorées) ET double authentification vérifiée : StaffMfa activée en base et
+ * cookie de preuve valide pour cet utilisateur et cette époque. Sinon 403
+ * { code: 'mfa_required' }.
+ */
+export async function requireStaff(...roles: StaffRole[]): Promise<StaffResult> {
+  const staff = await requireStaffIdentity(...roles);
+
+  if (!staff.ok) {
+    return staff;
+  }
+
+  if ((await getStaffMfaState(staff.user.id)) !== 'verified') {
+    return deny(403, 'Double authentification requise', MFA_REQUIRED_CODE);
+  }
+
+  return staff;
 }

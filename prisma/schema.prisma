@@ -99,6 +99,8 @@ model User {
   sessions      Session[]
   staffAssignments        StaffAssignment[] @relation("StaffAssignmentUser")
   staffAssignmentsGranted StaffAssignment[] @relation("StaffAssignmentGrantedBy")
+  staffMfa                StaffMfa?
+  staffRecoveryCodes      StaffRecoveryCode[]
   /// Rattachement officiel facultatif. La colonne texte `department` reste la source de lecture.
   departmentId       String?
   programId          String?
@@ -388,4 +390,34 @@ model DepartmentAlias {
   department   Department @relation(fields: [departmentId], references: [id], onDelete: Cascade)
 
   @@index([departmentId])
+}
+
+// --- Double authentification du personnel (TOTP) ------------------------------
+
+/// Secret TOTP d'un membre du personnel. secretCipher = AES-256-GCM
+/// (iv + tag + chiffré, en base64) ; chaîne vide = aucun secret (après reset).
+/// enabledAt null = enrôlement en cours. epoch invalide les preuves (cookies)
+/// existantes quand il est incrémenté.
+model StaffMfa {
+  id           String    @id @default(cuid())
+  userId       String    @unique
+  secretCipher String
+  enabledAt    DateTime?
+  epoch        Int       @default(1)
+  lastUsedStep Int?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+/// Code de secours à usage unique (stocké haché, jamais en clair).
+model StaffRecoveryCode {
+  id        String    @id @default(cuid())
+  userId    String
+  codeHash  String
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
