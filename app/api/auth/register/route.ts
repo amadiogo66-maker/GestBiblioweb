@@ -71,8 +71,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       width: 256,
     });
 
-    const [user] = await prisma.$transaction([
-      prisma.user.create({
+    const user = await prisma.$transaction(async (tx) => {
+      const createdUser = await tx.user.create({
         data: {
           email,
           username,
@@ -100,9 +100,17 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           department: true,
           createdAt: true,
         },
-      }),
-      prisma.verificationToken.deleteMany({ where: { identifier } }),
-    ]);
+      });
+
+      await tx.verificationToken.deleteMany({ where: { identifier } });
+      // Prêts déjà reçus du logiciel pour ce membre, avant la création de son compte.
+      await tx.loan.updateMany({
+        where: { matricule: member.matricule, userId: null },
+        data: { userId: createdUser.id },
+      });
+
+      return createdUser;
+    });
 
     await prisma.activityLog.create({
       data: {

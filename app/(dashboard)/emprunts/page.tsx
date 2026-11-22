@@ -5,7 +5,7 @@ import { BookX } from 'lucide-react';
 import type { ReactElement } from 'react';
 import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
-import { isRenewableLoan, loanSelect } from '@/lib/circulation';
+import { canRequestRenewal, loanSelect } from '@/lib/circulation';
 import { LoanCard } from '@/components/dashboard/LoanCard';
 import { cn } from '@/lib/utils';
 
@@ -83,7 +83,7 @@ export default async function EmpruntsPage({ searchParams }: EmpruntsPageProps):
       ) : (
         <div className="flex flex-col gap-3">
           {loans.map((loan) => (
-            <LoanCard key={loan.id} loan={loan} canRenew={isRenewableLoan(loan)} />
+            <LoanCard key={loan.id} loan={loan} canRenew={canRequestRenewal(loan)} />
           ))}
         </div>
       )}

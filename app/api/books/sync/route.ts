@@ -70,10 +70,14 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       { externalId: book.externalId }
     );
     const data = toBookCreateData(book);
+    // Champ absent : à la création il vaut totalCopies, mais à la mise à jour il ne
+    // doit pas écraser la disponibilité réelle transmise par /api/loans/sync.
+    const { availableCopies: _defaultCopies, ...dataWithoutCopies } = data;
+    const updateData = book.availableCopies === undefined ? dataWithoutCopies : data;
     const syncedBook = await prisma.book.upsert({
       where: { externalId: book.externalId },
       create: { ...data, ...(departmentId ? { officialDepartment: { connect: { id: departmentId } } } : {}) },
-      update: { ...data, officialDepartment: departmentId ? { connect: { id: departmentId } } : { disconnect: true } },
+      update: { ...updateData, officialDepartment: departmentId ? { connect: { id: departmentId } } : { disconnect: true } },
       select: bookSelect,
     });
 

@@ -215,7 +215,8 @@ model Book {
 
 model Loan {
   id            String      @id @default(cuid())
-  userId        String
+  /// Null : prêt d'un membre sans compte web (rattaché à l'inscription via matricule).
+  userId        String?
   bookId        String
   borrowDate    DateTime    @default(now())
   dueDate       DateTime
@@ -223,12 +224,18 @@ model Loan {
   status        LoanStatus  @default(ACTIVE)
   renewalCount  Int         @default(0)
   fineAmount    Decimal?    @db.Decimal(10, 2)
-  user          User        @relation(fields: [userId], references: [id])
+  /// Identifiant du prêt dans le logiciel de gestion, propriétaire des prêts.
+  externalId    String?     @unique
+  matricule     String?
+  /// Demande de renouvellement en attente de traitement par le logiciel.
+  renewalRequestedAt DateTime?
+  user          User?       @relation(fields: [userId], references: [id], onDelete: Restrict)
   book          Book        @relation(fields: [bookId], references: [id])
 
   @@index([userId])
   @@index([bookId])
   @@index([status])
+  @@index([matricule])
 }
 
 model Reservation {
@@ -420,4 +427,16 @@ model StaffRecoveryCode {
   user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
+}
+
+/// Boîte d'envoi : demandes des utilisateurs, lues puis acquittées par le logiciel.
+/// Aucune donnée personnelle superflue dans payload (matricule, identifiants, dates).
+model SiteEvent {
+  seq         Int       @id @default(autoincrement())
+  type        String
+  payload     Json
+  createdAt   DateTime  @default(now())
+  processedAt DateTime?
+
+  @@index([processedAt, seq])
 }

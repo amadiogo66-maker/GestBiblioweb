@@ -4,9 +4,12 @@ import { jsonResponse } from '@/lib/api';
 import { rejectCrossOrigin, requireActiveUser } from '@/lib/authz';
 import { prisma } from '@/lib/prisma';
 import { logger } from '@/lib/logger';
-import { createRenewedDueDate, isRenewableLoan, loanSelect } from '@/lib/circulation';
+import { isRenewableLoan, loanSelect } from '@/lib/circulation';
+import { recordSiteEvent } from '@/lib/site-events';
 
 export const runtime = 'nodejs';
+
+const ALREADY_REQUESTED_MESSAGE = 'Une demande de renouvellement est déjà en attente';
 
 interface RenewLoanRouteContext {
   params: Promise<{
@@ -39,9 +42,13 @@ export async function PATCH(request: NextRequest, context: RenewLoanRouteContext
       },
       select: {
         id: true,
+        externalId: true,
+        matricule: true,
         dueDate: true,
         renewalCount: true,
+        renewalRequestedAt: true,
         status: true,
+        book: { select: { externalId: true } },
       },
     });
 
@@ -53,29 +60,66 @@ export async function PATCH(request: NextRequest, context: RenewLoanRouteContext
       return jsonResponse({ success: false, message: 'Cet emprunt ne peut pas être renouvelé' }, 409);
     }
 
-    const renewedLoan = await prisma.loan.update({
-      where: { id: loan.id },
-      data: {
-        dueDate: createRenewedDueDate(loan.dueDate),
-        renewalCount: { increment: 1 },
-      },
-      select: loanSelect,
+    const loanExternalId = loan.externalId;
+
+    if (!loanExternalId) {
+      return jsonResponse(
+        { success: false, message: 'Cet emprunt n’est pas enregistré dans le logiciel de la bibliothèque : adressez-vous au guichet.' },
+        409
+      );
+    }
+
+    if (loan.renewalRequestedAt) {
+      return jsonResponse({ success: false, message: ALREADY_REQUESTED_MESSAGE }, 409);
+    }
+
+    // Une DEMANDE seulement : dueDate et renewalCount restent décidés par le logiciel.
+    const requestedLoan = await prisma.$transaction(async (tx) => {
+      const requestedAt = new Date();
+      const { count } = await tx.loan.updateMany({
+        where: { id: loan.id, userId: user.id, status: LoanStatus.ACTIVE, renewalRequestedAt: null },
+        data: { renewalRequestedAt: requestedAt },
+      });
+
+      if (count !== 1) {
+        return null;
+      }
+
+      const updated = await tx.loan.findUniqueOrThrow({ where: { id: loan.id }, select: loanSelect });
+
+      await tx.activityLog.create({
+        data: {
+          userId: user.id,
+          action: 'loan.renewal_requested',
+          ipAddress: request.headers.get('x-forwarded-for'),
+          userAgent: request.headers.get('user-agent'),
+          details: { loanId: updated.id, bookId: updated.bookId },
+        },
+      });
+
+      await recordSiteEvent(tx, 'loan.renewal_requested', {
+        loanExternalId,
+        matricule: loan.matricule ?? user.matricule,
+        bookExternalId: loan.book.externalId,
+        requestedAt: requestedAt.toISOString(),
+        currentDueDate: updated.dueDate.toISOString(),
+      });
+
+      return updated;
     });
 
-    await prisma.activityLog.create({
-      data: {
-        userId: user.id,
-        action: 'loan.renew',
-        ipAddress: request.headers.get('x-forwarded-for'),
-        userAgent: request.headers.get('user-agent'),
-        details: { loanId: renewedLoan.id, bookId: renewedLoan.bookId },
-      },
-    });
+    if (!requestedLoan) {
+      return jsonResponse({ success: false, message: ALREADY_REQUESTED_MESSAGE }, 409);
+    }
 
-    return jsonResponse({ success: true, message: 'Emprunt renouvelé', data: renewedLoan });
+    return jsonResponse({
+      success: true,
+      message: 'Demande de renouvellement envoyée, le bibliothécaire la traitera au guichet',
+      data: requestedLoan,
+    });
   } catch (error) {
-    logger.error('Loan renewal failed', { error: error instanceof Error ? error.message : 'unknown error' });
-    return jsonResponse({ success: false, message: 'Impossible de renouveler l’emprunt' }, 500);
+    logger.error('Loan renewal request failed', { error: error instanceof Error ? error.message : 'unknown error' });
+    return jsonResponse({ success: false, message: 'Impossible d’envoyer la demande de renouvellement' }, 500);
   }
 }
 

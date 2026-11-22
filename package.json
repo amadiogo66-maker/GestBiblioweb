@@ -24,6 +24,8 @@
     "db:demo-books": "tsx prisma/add-demo-books.ts",
     "db:seed-structure": "tsx scripts/seed-structure.ts",
     "db:backfill-departments": "tsx scripts/backfill-departments.ts",
+    "db:seed-demo-loans": "tsx scripts/seed-demo-loans.ts",
+    "events:purge": "tsx scripts/events-purge.ts",
     "db:studio": "prisma studio",
     "staff:grant": "tsx scripts/staff-grant.ts grant",
     "staff:revoke": "tsx scripts/staff-grant.ts revoke",

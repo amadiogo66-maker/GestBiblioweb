@@ -3,7 +3,7 @@ import { redirect } from 'next/navigation';
 import { ArrowRight, Bell, Bookmark, BookMarked } from 'lucide-react';
 import type { ReactElement } from 'react';
 import { auth } from '@/lib/auth';
-import { isRenewableLoan } from '@/lib/circulation';
+import { canRequestRenewal } from '@/lib/circulation';
 import { getDashboardOverview } from '@/lib/dashboard-data';
 import { StatCard } from '@/components/dashboard/StatCard';
 import { LoanCard } from '@/components/dashboard/LoanCard';
@@ -49,7 +49,7 @@ export default async function TableauDeBordPage(): Promise<ReactElement> {
         ) : (
           <div className="flex flex-col gap-3">
             {recentLoans.map((loan) => (
-              <LoanCard key={loan.id} loan={loan} canRenew={isRenewableLoan(loan)} />
+              <LoanCard key={loan.id} loan={loan} canRenew={canRequestRenewal(loan)} />
             ))}
           </div>
         )}

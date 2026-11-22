@@ -25,7 +25,7 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
     return NextResponse.next();
   }
 
-  if (pathname === '/api/books/sync' || pathname === '/api/news/sync' || pathname === '/api/members/sync' || pathname === '/api/notifications/sync' || pathname === '/api/contact' || pathname === '/api/stats') {
+  if (pathname === '/api/books/sync' || pathname === '/api/news/sync' || pathname === '/api/members/sync' || pathname === '/api/notifications/sync' || pathname === '/api/loans/sync' || pathname === '/api/reservations/sync' || pathname === '/api/events' || pathname === '/api/events/ack' || pathname === '/api/contact' || pathname === '/api/stats') {
     return NextResponse.next();
   }
 

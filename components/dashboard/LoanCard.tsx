@@ -29,9 +29,7 @@ const STATUS_LABELS: Record<string, { label: string; variant: 'success' | 'dange
 };
 
 export function LoanCard({ loan, canRenew }: LoanCardProps): ReactElement {
-  const [dueDate, setDueDate] = useState<Date | string>(loan.dueDate);
-  const [renewalCount, setRenewalCount] = useState(loan.renewalCount);
-  const [isRenewed, setIsRenewed] = useState(false);
+  const [isRequested, setIsRequested] = useState(loan.renewalRequestedAt !== null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [feedback, setFeedback] = useState<FeedbackState | null>(null);
 
@@ -43,17 +41,18 @@ export function LoanCard({ loan, canRenew }: LoanCardProps): ReactElement {
 
     try {
       const response = await fetch(`/api/loans/${loan.id}/renew`, { method: 'PATCH' });
-      const payload = (await response.json()) as ApiResponse<{ dueDate: string; renewalCount: number }>;
+      const payload = (await response.json()) as ApiResponse<{ renewalRequestedAt: string }>;
 
       if (!response.ok || !payload.success || !payload.data) {
-        setFeedback({ type: 'error', message: payload.message ?? 'Impossible de renouveler cet emprunt.' });
+        setFeedback({ type: 'error', message: payload.message ?? 'Impossible d’envoyer la demande de renouvellement.' });
         return;
       }
 
-      setDueDate(payload.data.dueDate);
-      setRenewalCount(payload.data.renewalCount);
-      setIsRenewed(true);
-      setFeedback({ type: 'success', message: 'Emprunt renouvelé avec succès.' });
+      setIsRequested(true);
+      setFeedback({
+        type: 'success',
+        message: payload.message ?? 'Demande de renouvellement envoyée, le bibliothécaire la traitera au guichet.',
+      });
     } catch {
       setFeedback({ type: 'error', message: 'Une erreur réseau est survenue. Réessayez.' });
     } finally {
@@ -84,9 +83,9 @@ export function LoanCard({ loan, canRenew }: LoanCardProps): ReactElement {
           <Badge variant={statusInfo.variant}>{statusInfo.label}</Badge>
           <span>Emprunté le {formatDate(loan.borrowDate)}</span>
           <span>
-            À rendre le <strong className="text-primary">{formatDate(dueDate)}</strong>
+            À rendre le <strong className="text-primary">{formatDate(loan.dueDate)}</strong>
           </span>
-          {renewalCount > 0 ? <span>{renewalCount} renouvellement(s)</span> : null}
+          {loan.renewalCount > 0 ? <span>{loan.renewalCount} renouvellement(s)</span> : null}
         </div>
         {feedback ? (
           <p
@@ -103,7 +102,12 @@ export function LoanCard({ loan, canRenew }: LoanCardProps): ReactElement {
         ) : null}
       </div>
 
-      {canRenew && !isRenewed ? (
+      {isRequested && loan.status === 'ACTIVE' ? (
+        <Button type="button" variant="outline" size="sm" disabled className="shrink-0">
+          <RefreshCw className="h-4 w-4" aria-hidden="true" />
+          Renouvellement demandé
+        </Button>
+      ) : canRenew ? (
         <Button
           type="button"
           variant="outline"

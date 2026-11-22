@@ -57,7 +57,9 @@ export function BookActions({
       <p className="rounded-lg bg-secondary/10 px-4 py-3 text-sm text-secondary">
         {reservationStatus === 'READY'
           ? 'Votre exemplaire est prêt à être récupéré.'
-          : 'Vous avez déjà réservé ce livre — vous êtes sur liste d’attente.'}
+          : feedback?.type === 'success'
+            ? feedback.message
+            : 'Vous avez déjà réservé ce livre — vous êtes sur liste d’attente.'}
       </p>
     );
   }
@@ -80,7 +82,10 @@ export function BookActions({
       }
 
       setReservationStatus(payload.data.status);
-      setFeedback({ type: 'success', message: 'Réservation effectuée avec succès.' });
+      setFeedback({
+        type: 'success',
+        message: payload.message ?? 'Réservation enregistrée, vous serez prévenu lorsque l’ouvrage sera prêt.',
+      });
     } catch {
       setFeedback({ type: 'error', message: 'Une erreur réseau est survenue. Réessayez.' });
     } finally {

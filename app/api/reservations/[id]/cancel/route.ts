@@ -5,6 +5,7 @@ import { rejectCrossOrigin, requireActiveUser } from '@/lib/authz';
 import { prisma } from '@/lib/prisma';
 import { logger } from '@/lib/logger';
 import { reservationSelect } from '@/lib/circulation';
+import { recordSiteEvent } from '@/lib/site-events';
 
 export const runtime = 'nodejs';
 
@@ -31,34 +32,47 @@ export async function PATCH(request: NextRequest, context: CancelReservationRout
     const { user } = authz;
 
     const { id } = await context.params;
-    const reservation = await prisma.reservation.findFirst({
-      where: {
-        id,
-        userId: user.id,
-        status: { in: [ReservationStatus.PENDING, ReservationStatus.READY] },
-      },
-      select: { id: true },
+    // Tout ou rien : statut, journal et événement. La mise à jour conditionnelle
+    // évite d'annuler une réservation que le logiciel vient de faire évoluer.
+    const cancelledReservation = await prisma.$transaction(async (tx) => {
+      const { count } = await tx.reservation.updateMany({
+        where: {
+          id,
+          userId: user.id,
+          status: { in: [ReservationStatus.PENDING, ReservationStatus.READY] },
+        },
+        data: { status: ReservationStatus.CANCELLED },
+      });
+
+      if (count !== 1) {
+        return null;
+      }
+
+      const cancelled = await tx.reservation.findUniqueOrThrow({ where: { id }, select: reservationSelect });
+
+      await tx.activityLog.create({
+        data: {
+          userId: user.id,
+          action: 'reservation.cancel',
+          ipAddress: request.headers.get('x-forwarded-for'),
+          userAgent: request.headers.get('user-agent'),
+          details: { reservationId: cancelled.id, bookId: cancelled.bookId },
+        },
+      });
+
+      await recordSiteEvent(tx, 'reservation.cancelled', {
+        reservationId: cancelled.id,
+        matricule: user.matricule,
+        bookExternalId: cancelled.book.externalId,
+        cancelledAt: new Date().toISOString(),
+      });
+
+      return cancelled;
     });
 
-    if (!reservation) {
+    if (!cancelledReservation) {
       return jsonResponse({ success: false, message: 'Réservation introuvable' }, 404);
     }
-
-    const cancelledReservation = await prisma.reservation.update({
-      where: { id: reservation.id },
-      data: { status: ReservationStatus.CANCELLED },
-      select: reservationSelect,
-    });
-
-    await prisma.activityLog.create({
-      data: {
-        userId: user.id,
-        action: 'reservation.cancel',
-        ipAddress: request.headers.get('x-forwarded-for'),
-        userAgent: request.headers.get('user-agent'),
-        details: { reservationId: cancelledReservation.id, bookId: cancelledReservation.bookId },
-      },
-    });
 
     return jsonResponse({ success: true, message: 'Réservation annulée', data: cancelledReservation });
   } catch (error) {

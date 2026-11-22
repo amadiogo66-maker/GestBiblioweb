@@ -5,7 +5,8 @@ import { jsonResponse, validationErrorResponse } from '@/lib/api';
 import { rejectCrossOrigin, requireActiveUser } from '@/lib/authz';
 import { prisma } from '@/lib/prisma';
 import { logger } from '@/lib/logger';
-import { createReservationExpiryDate, getInitialReservationStatus, reservationSelect } from '@/lib/circulation';
+import { reservationSelect } from '@/lib/circulation';
+import { recordSiteEvent } from '@/lib/site-events';
 import type { PaginatedResponse } from '@/types';
 
 export const runtime = 'nodejs';
@@ -119,8 +120,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         where: { id: parsed.data.bookId },
         select: {
           id: true,
+          externalId: true,
           status: true,
-          availableCopies: true,
         },
       });
 
@@ -132,13 +133,13 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         throw new Error('BOOK_NOT_RESERVABLE');
       }
 
-      const initialStatus = getInitialReservationStatus(book);
+      // Le site enregistre une demande : READY ne vient que de /api/reservations/sync.
       const createdReservation = await tx.reservation.create({
         data: {
           userId: user.id,
           bookId: book.id,
-          status: initialStatus,
-          expiryDate: initialStatus === ReservationStatus.READY ? createReservationExpiryDate() : null,
+          status: ReservationStatus.PENDING,
+          expiryDate: null,
         },
         select: reservationSelect,
       });
@@ -149,14 +150,21 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           action: 'reservation.create',
           ipAddress: request.headers.get('x-forwarded-for'),
           userAgent: request.headers.get('user-agent'),
-          details: { reservationId: createdReservation.id, bookId: book.id, status: initialStatus },
+          details: { reservationId: createdReservation.id, bookId: book.id, status: createdReservation.status },
         },
+      });
+
+      await recordSiteEvent(tx, 'reservation.created', {
+        reservationId: createdReservation.id,
+        matricule: user.matricule,
+        bookExternalId: book.externalId,
+        requestedAt: createdReservation.requestDate.toISOString(),
       });
 
       return createdReservation;
     });
 
-    return jsonResponse({ success: true, message: 'Réservation créée', data: reservation }, 201);
+    return jsonResponse({ success: true, message: 'Réservation enregistrée, vous serez prévenu lorsque l’ouvrage sera prêt', data: reservation }, 201);
   } catch (error) {
     if (error instanceof Error) {
       if (error.message === 'BOOK_ALREADY_BORROWED') {
