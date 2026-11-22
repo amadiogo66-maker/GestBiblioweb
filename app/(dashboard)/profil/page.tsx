@@ -1,6 +1,5 @@
-import { redirect } from 'next/navigation';
 import type { ReactElement } from 'react';
-import { auth } from '@/lib/auth';
+import { requireActiveDashboardUser } from '@/lib/dashboard-access';
 import { prisma } from '@/lib/prisma';
 import { ensureLibraryCard } from '@/lib/library-card';
 import { ProfileForm } from '@/components/dashboard/ProfileForm';
@@ -10,15 +9,12 @@ import { LibraryCard } from '@/components/dashboard/LibraryCard';
 export const dynamic = 'force-dynamic';
 
 export default async function ProfilPage(): Promise<ReactElement> {
-  const session = await auth();
-
-  if (!session?.user) {
-    redirect('/connexion');
-  }
+  // Avant toute lecture : le layout s'exécute en parallèle et ne protège pas seul.
+  const user = await requireActiveDashboardUser();
 
   const [profile, card] = await Promise.all([
     prisma.user.findUniqueOrThrow({
-      where: { id: session.user.id },
+      where: { id: user.id },
       select: {
         email: true,
         username: true,
@@ -29,7 +25,7 @@ export default async function ProfilPage(): Promise<ReactElement> {
         photo: true,
       },
     }),
-    ensureLibraryCard(session.user.id),
+    ensureLibraryCard(user.id),
   ]);
 
   return (

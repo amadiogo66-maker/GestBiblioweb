@@ -1,8 +1,7 @@
 import Link from 'next/link';
-import { redirect } from 'next/navigation';
 import { BookmarkX } from 'lucide-react';
 import type { ReactElement } from 'react';
-import { auth } from '@/lib/auth';
+import { requireActiveDashboardUser } from '@/lib/dashboard-access';
 import { prisma } from '@/lib/prisma';
 import { reservationSelect } from '@/lib/circulation';
 import { ReservationCard } from '@/components/dashboard/ReservationCard';
@@ -12,15 +11,12 @@ import { isCirculationReachable } from '@/lib/circulation-status';
 export const dynamic = 'force-dynamic';
 
 export default async function ReservationsPage(): Promise<ReactElement> {
-  const session = await auth();
-
-  if (!session?.user) {
-    redirect('/connexion');
-  }
+  // Avant toute lecture : le layout s'exécute en parallèle et ne protège pas seul.
+  const user = await requireActiveDashboardUser();
 
   const reachable = await isCirculationReachable();
   const reservations = await prisma.reservation.findMany({
-    where: { userId: session.user.id },
+    where: { userId: user.id },
     select: reservationSelect,
     orderBy: { requestDate: 'desc' },
   });

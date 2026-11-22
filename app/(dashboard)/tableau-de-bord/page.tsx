@@ -1,8 +1,7 @@
 import Link from 'next/link';
-import { redirect } from 'next/navigation';
 import { ArrowRight, Bell, Bookmark, BookMarked } from 'lucide-react';
 import type { ReactElement } from 'react';
-import { auth } from '@/lib/auth';
+import { requireActiveDashboardUser } from '@/lib/dashboard-access';
 import { canRequestRenewal } from '@/lib/circulation';
 import { getDashboardOverview } from '@/lib/dashboard-data';
 import { StatCard } from '@/components/dashboard/StatCard';
@@ -13,18 +12,15 @@ import { Button } from '@/components/ui/Button';
 export const dynamic = 'force-dynamic';
 
 export default async function TableauDeBordPage(): Promise<ReactElement> {
-  const session = await auth();
+  // Avant toute lecture : le layout s'exécute en parallèle et ne protège pas seul.
+  const user = await requireActiveDashboardUser();
 
-  if (!session?.user) {
-    redirect('/connexion');
-  }
-
-  const { stats, recentLoans, recentReservations } = await getDashboardOverview(session.user.id);
+  const { stats, recentLoans, recentReservations } = await getDashboardOverview(user.id);
 
   return (
     <div className="flex flex-col gap-8">
       <div>
-        <h1 className="font-serif text-2xl font-semibold text-primary">Bonjour, {session.user.firstName}</h1>
+        <h1 className="font-serif text-2xl font-semibold text-primary">Bonjour, {user.firstName}</h1>
         <p className="mt-1 text-sm text-slate-500">Voici un aperçu de votre espace personnel.</p>
       </div>
 

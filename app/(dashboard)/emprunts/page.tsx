@@ -1,9 +1,8 @@
 import Link from 'next/link';
-import { redirect } from 'next/navigation';
 import { LoanStatus, type Prisma } from '@prisma/client';
 import { BookX } from 'lucide-react';
 import type { ReactElement } from 'react';
-import { auth } from '@/lib/auth';
+import { requireActiveDashboardUser } from '@/lib/dashboard-access';
 import { prisma } from '@/lib/prisma';
 import { attachOrphanLoans, canRequestRenewal, loanSelect } from '@/lib/circulation';
 import { isCirculationReachable } from '@/lib/circulation-status';
@@ -26,11 +25,8 @@ interface EmpruntsPageProps {
 }
 
 export default async function EmpruntsPage({ searchParams }: EmpruntsPageProps): Promise<ReactElement> {
-  const session = await auth();
-
-  if (!session?.user) {
-    redirect('/connexion');
-  }
+  // Avant toute lecture : le layout s'exécute en parallèle et ne protège pas seul.
+  const user = await requireActiveDashboardUser();
 
   const { status } = await searchParams;
   const filter: LoanFilter = status === 'active' || status === 'history' ? status : 'all';
@@ -42,11 +38,11 @@ export default async function EmpruntsPage({ searchParams }: EmpruntsPageProps):
         ? { status: { in: [LoanStatus.RETURNED, LoanStatus.LOST] } }
         : {};
 
-  await attachOrphanLoans(session.user.id);
+  await attachOrphanLoans(user.id);
 
   const reachable = await isCirculationReachable();
   const loans = await prisma.loan.findMany({
-    where: { userId: session.user.id, ...statusFilter },
+    where: { userId: user.id, ...statusFilter },
     select: loanSelect,
     orderBy: { borrowDate: 'desc' },
   });

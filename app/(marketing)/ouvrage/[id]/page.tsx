@@ -4,7 +4,7 @@ import { LoanStatus, ReservationStatus } from '@prisma/client';
 import type { ReactElement } from 'react';
 import { prisma } from '@/lib/prisma';
 import { bookSelect } from '@/lib/books';
-import { auth } from '@/lib/auth';
+import { getActiveSessionUserId } from '@/lib/dashboard-access';
 import { Container } from '@/components/ui/Container';
 import { BookDetail } from '@/components/ouvrage/BookDetail';
 import { BookMetadata } from '@/components/ouvrage/BookMetadata';
@@ -30,20 +30,21 @@ export default async function OuvragePage({ params }: OuvragePageProps): Promise
     return <EmptyState />;
   }
 
-  const session = await auth();
+  // Page publique : seul un compte ACTIF reçoit l'état de son prêt ou de sa réservation.
+  const viewerId = await getActiveSessionUserId();
 
   let loanDueDate: Date | null = null;
   let reservationStatus: ReservationStatus | null = null;
 
-  if (session?.user?.id) {
+  if (viewerId) {
     const [loan, reservation] = await Promise.all([
       prisma.loan.findFirst({
-        where: { userId: session.user.id, bookId: book.id, status: LoanStatus.ACTIVE },
+        where: { userId: viewerId, bookId: book.id, status: LoanStatus.ACTIVE },
         select: { dueDate: true },
       }),
       prisma.reservation.findFirst({
         where: {
-          userId: session.user.id,
+          userId: viewerId,
           bookId: book.id,
           status: { in: [ReservationStatus.PENDING, ReservationStatus.READY] },
         },

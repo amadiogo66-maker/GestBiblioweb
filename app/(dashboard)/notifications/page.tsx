@@ -1,12 +1,10 @@
 import Link from 'next/link';
-import { redirect } from 'next/navigation';
 import { BellOff } from 'lucide-react';
 import type { Metadata } from 'next';
 import type { ReactElement } from 'react';
 import { MarkAllReadButton } from '@/components/dashboard/NotificationActions';
 import { NotificationItem } from '@/components/dashboard/NotificationItem';
 import { Pagination } from '@/components/shared/Pagination';
-import { auth } from '@/lib/auth';
 import { requireActiveDashboardUser } from '@/lib/dashboard-access';
 import { buildListHref } from '@/lib/list-url';
 import { listUserNotifications } from '@/lib/notifications-data';
@@ -30,16 +28,11 @@ const FILTERS = [
 ] as const;
 
 export default async function NotificationsPage({ searchParams }: NotificationsPageProps): Promise<ReactElement> {
-  const session = await auth();
-
-  if (!session?.user) {
-    redirect('/connexion');
-  }
-
-  await requireActiveDashboardUser(session.user.id);
+  // Avant toute lecture : le layout s'exécute en parallèle et ne protège pas seul.
+  const user = await requireActiveDashboardUser();
 
   const query = notificationsPageSchema.parse(flattenSearchParams(await searchParams));
-  const { notifications, page, total, totalPages, unreadCount } = await listUserNotifications(session.user.id, query);
+  const { notifications, page, total, totalPages, unreadCount } = await listUserNotifications(user.id, query);
   const filterParam = query.filter === 'unread' ? 'unread' : undefined;
   const now = new Date();
 
