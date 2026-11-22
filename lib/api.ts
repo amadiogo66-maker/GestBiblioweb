@@ -1,9 +1,6 @@
 import { NextResponse } from 'next/server';
 import { ZodError } from 'zod';
 import { Prisma } from '@prisma/client';
-import { auth } from '@/lib/auth';
-import { prisma } from '@/lib/prisma';
-import { publicUserSelect, type PublicUser } from '@/lib/user-select';
 import type { ApiResponse } from '@/types';
 
 export function jsonResponse<T>(body: ApiResponse<T>, status = 200): NextResponse<ApiResponse<T>> {
@@ -43,23 +40,4 @@ export function prismaErrorResponse(error: unknown): NextResponse<ApiResponse<ne
   }
 
   return null;
-}
-
-/**
- * Utilisateur de la session relu en base, QUEL QUE SOIT son statut.
- * Réservé à /api/auth/me ; pour autoriser une action, utiliser
- * requireActiveUser() / requireStaff() de lib/authz.ts.
- * Champs explicites : jamais le mot de passe ni le QR code.
- */
-export async function getAuthenticatedUser(): Promise<PublicUser | null> {
-  const session = await auth();
-
-  if (!session?.user?.id) {
-    return null;
-  }
-
-  return prisma.user.findUnique({
-    where: { id: session.user.id },
-    select: publicUserSelect,
-  });
 }

@@ -20,7 +20,6 @@ const { auth } = await import('@/lib/auth');
 const mfa = await import('@/lib/staff-mfa');
 const store = await import('@/lib/staff-mfa-store');
 const { requireActiveUser, requireStaff } = await import('@/lib/authz');
-const { getAuthenticatedUser } = await import('@/lib/api');
 const { requireStaffPage } = await import('@/lib/staff-page');
 const { POST: enroll } = await import('@/app/api/staff/mfa/enrollment/route');
 const { POST: activate } = await import('@/app/api/staff/mfa/activate/route');
@@ -358,15 +357,14 @@ describe('vérification', () => {
 });
 
 describe('objets utilisateur', () => {
-  it('requireActiveUser, getAuthenticatedUser et /api/auth/me : jamais password ni qrCode', async () => {
+  it('requireActiveUser et /api/auth/me : jamais password ni qrCode', async () => {
     const id = await createUser(false);
     as(id);
     const active = await requireActiveUser();
-    const raw = await getAuthenticatedUser();
     const response = await read(await me());
 
     expect(active.ok).toBe(true);
-    for (const value of [active.ok ? active.user : {}, raw ?? {}, response.body.data]) {
+    for (const value of [active.ok ? active.user : {}, response.body.data]) {
       expect(value).not.toHaveProperty('password');
       expect(value).not.toHaveProperty('qrCode');
       expect(JSON.stringify(value)).not.toContain('FIXTURE');

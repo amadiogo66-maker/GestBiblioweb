@@ -3,8 +3,18 @@ import { handlers } from '@/lib/auth';
 import { checkRateLimits, ipRateLimitKey, rateLimitKey, rateLimitedResponse } from '@/lib/rate-limit';
 import { RATE_LIMITS } from '@/lib/constants';
 import { clearedMfaProofCookieHeader } from '@/lib/staff-mfa-session';
+import { withoutInactiveSession } from '@/lib/session-response';
 
-export const { GET } = handlers;
+/**
+ * Seul le point /session est filtré : un compte non actif ou supprimé reçoit
+ * la réponse d'une session anonyme. Le CSRF, les fournisseurs et les autres
+ * points GET restent ceux d'Auth.js.
+ */
+export async function GET(request: NextRequest): Promise<Response> {
+  const response = await handlers.GET(request);
+
+  return request.nextUrl.pathname.endsWith('/session') ? withoutInactiveSession(response) : response;
+}
 
 /**
  * Limite les tentatives de connexion (par IP et par identifiant haché) AVANT

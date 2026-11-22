@@ -1,18 +1,20 @@
 import { NextResponse } from 'next/server';
-import { getAuthenticatedUser, jsonResponse } from '@/lib/api';
+import { jsonResponse } from '@/lib/api';
+import { requireActiveUser } from '@/lib/authz';
 
 export const runtime = 'nodejs';
 
 export async function GET(): Promise<NextResponse> {
-  // getAuthenticatedUser ne sélectionne jamais password ni qrCode.
-  const user = await getAuthenticatedUser();
+  // Compte relu en base : 401 sans aucune donnée s'il n'est pas ACTIVE ou n'existe plus.
+  // Champs explicites : jamais password ni qrCode.
+  const authz = await requireActiveUser();
 
-  if (!user) {
-    return jsonResponse({ success: false, message: 'Non authentifié' }, 401);
+  if (!authz.ok) {
+    return authz.response;
   }
 
   return jsonResponse({
     success: true,
-    data: user,
+    data: authz.user,
   });
 }
