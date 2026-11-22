@@ -229,6 +229,8 @@ model Loan {
   matricule     String?
   /// Demande de renouvellement en attente de traitement par le logiciel.
   renewalRequestedAt DateTime?
+  /// Dernier refus de renouvellement décidé par le logiciel (levé si l'échéance change).
+  renewalRefusedAt   DateTime?
   user          User?       @relation(fields: [userId], references: [id], onDelete: Restrict)
   book          Book        @relation(fields: [bookId], references: [id])
 
@@ -238,6 +240,8 @@ model Loan {
   @@index([matricule])
 }
 
+/// Index unique PARTIEL (userId, bookId) WHERE status IN ('PENDING','READY') :
+/// écrit à la main dans la migration, Prisma ne sait pas le décrire ici.
 model Reservation {
   id           String             @id @default(cuid())
   userId       String
@@ -273,6 +277,10 @@ model Notification {
   message   String
   isRead    Boolean          @default(false)
   createdAt DateTime         @default(now())
+  /// Clé d'idempotence : une même notification n'est jamais créée deux fois.
+  dedupeKey String?          @unique
+  /// "site" ou "software".
+  source    String           @default("site")
   user      User             @relation(fields: [userId], references: [id])
 
   @@index([userId])

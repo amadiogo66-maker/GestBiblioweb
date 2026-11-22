@@ -1,35 +1,19 @@
-import { timingSafeEqual } from 'crypto';
 import { NextResponse, type NextRequest } from 'next/server';
-import { syncBookSchema } from '@/schemas/book';
-import { bookSelect, toBookCreateData } from '@/lib/books';
+import { createBookSchema, syncBookSchema } from '@/schemas/book';
+import { bookSelect, toBookCreateData, toBookUpdateData } from '@/lib/books';
 import { jsonResponse, prismaErrorResponse, validationErrorResponse } from '@/lib/api';
+import { rejectInvalidApiKey } from '@/lib/api-key';
 import { prisma } from '@/lib/prisma';
 import { logger } from '@/lib/logger';
 import { UnresolvedDepartments, loadDepartmentIndex, resolveReceivedDepartment } from '@/lib/departments';
 
 export const runtime = 'nodejs';
 
-function isValidApiKey(apiKey: string | null): boolean {
-  const expectedApiKey = process.env.GEST_BIBLIO_API_KEY;
-
-  if (!apiKey || !expectedApiKey) {
-    return false;
-  }
-
-  const provided = Buffer.from(apiKey);
-  const expected = Buffer.from(expectedApiKey);
-
-  return provided.length === expected.length && timingSafeEqual(provided, expected);
-}
-
 export async function POST(request: NextRequest): Promise<NextResponse> {
-  if (!process.env.GEST_BIBLIO_API_KEY) {
-    logger.error('Gest Biblio sync API key is not configured');
-    return jsonResponse({ success: false, message: 'Synchronisation indisponible' }, 500);
-  }
+  const rejectedKey = rejectInvalidApiKey(request, 'Gest Biblio sync API key is not configured');
 
-  if (!isValidApiKey(request.headers.get('x-api-key'))) {
-    return jsonResponse({ success: false, message: 'Clé API invalide' }, 401);
+  if (rejectedKey) {
+    return rejectedKey;
   }
 
   try {
@@ -69,17 +53,30 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       unresolvedDepartments,
       { externalId: book.externalId }
     );
-    const data = toBookCreateData(book);
-    // Champ absent : à la création il vaut totalCopies, mais à la mise à jour il ne
-    // doit pas écraser la disponibilité réelle transmise par /api/loans/sync.
-    const { availableCopies: _defaultCopies, ...dataWithoutCopies } = data;
-    const updateData = book.availableCopies === undefined ? dataWithoutCopies : data;
-    const syncedBook = await prisma.book.upsert({
-      where: { externalId: book.externalId },
-      create: { ...data, ...(departmentId ? { officialDepartment: { connect: { id: departmentId } } } : {}) },
-      update: { ...updateData, officialDepartment: departmentId ? { connect: { id: departmentId } } : { disconnect: true } },
-      select: bookSelect,
-    });
+    // Livre existant : seuls les champs reçus changent, les autres sont conservés.
+    // Nouveau livre : les valeurs par défaut s'appliquent.
+    const creation = createBookSchema.safeParse(book);
+    const existing = await prisma.book.findUnique({ where: { externalId: book.externalId }, select: { id: true } });
+
+    if (!existing && !creation.success) {
+      return validationErrorResponse(creation.error);
+    }
+
+    const updateData = {
+      ...toBookUpdateData(book),
+      officialDepartment: departmentId ? { connect: { id: departmentId } } : { disconnect: true },
+    };
+    const syncedBook = creation.success
+      ? await prisma.book.upsert({
+          where: { externalId: book.externalId },
+          create: {
+            ...toBookCreateData(creation.data),
+            ...(departmentId ? { officialDepartment: { connect: { id: departmentId } } } : {}),
+          },
+          update: updateData,
+          select: bookSelect,
+        })
+      : await prisma.book.update({ where: { externalId: book.externalId }, data: updateData, select: bookSelect });
 
     await prisma.activityLog.create({
       data: {

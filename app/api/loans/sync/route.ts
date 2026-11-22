@@ -2,7 +2,10 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { jsonResponse, validationErrorResponse } from '@/lib/api';
 import { rejectInvalidApiKey } from '@/lib/api-key';
 import { logActivity } from '@/lib/activity-log';
+import { resolveRenewalState } from '@/lib/circulation';
+import { recordCirculationContact } from '@/lib/circulation-status';
 import { logger } from '@/lib/logger';
+import { createNotification, notificationTexts } from '@/lib/notifications';
 import { prisma } from '@/lib/prisma';
 import { loanSyncItemSchema, loansSyncSchema } from '@/schemas/circulation-sync';
 
@@ -21,6 +24,8 @@ interface LoanWarning {
   message: string;
 }
 
+class LoanItemRejected extends Error {}
+
 function extractExternalId(raw: unknown): string | undefined {
   const value = raw && typeof raw === 'object' ? (raw as { externalId?: unknown }).externalId : undefined;
   return typeof value === 'string' ? value : undefined;
@@ -38,6 +43,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     return rejectedKey;
   }
 
+  await recordCirculationContact();
+
   try {
     const parsed = loansSyncSchema.safeParse(await request.json().catch(() => null));
 
@@ -54,7 +61,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const [members, users, books] = await Promise.all([
       prisma.libraryMember.findMany({ where: { matricule: { in: matricules } }, select: { matricule: true } }),
       prisma.user.findMany({ where: { matricule: { in: matricules } }, select: { id: true, matricule: true } }),
-      prisma.book.findMany({ where: { externalId: { in: bookExternalIds } }, select: { id: true, externalId: true, totalCopies: true } }),
+      prisma.book.findMany({
+        where: { externalId: { in: bookExternalIds } },
+        select: { id: true, externalId: true, title: true, totalCopies: true },
+      }),
     ]);
     const knownMembers = new Set(members.map((member) => member.matricule));
     const userIdByMatricule = new Map(users.map((user) => [user.matricule, user.id]));
@@ -96,11 +106,14 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         const wasExisting = await prisma.$transaction(async (tx) => {
           const existing = await tx.loan.findUnique({
             where: { externalId: loan.externalId },
-            select: { dueDate: true, renewalCount: true },
+            select: { dueDate: true, renewalCount: true, renewalRequestedAt: true, renewalRefusedAt: true },
           });
-          const renewalProcessed =
-            existing !== null &&
-            (existing.dueDate.getTime() !== loan.dueDate.getTime() || existing.renewalCount !== loan.renewalCount);
+          const renewal = resolveRenewalState(existing, loan);
+
+          if (renewal.conflict) {
+            throw new LoanItemRejected('renewalDecision REFUSED incompatible avec une échéance ou un renewalCount modifié');
+          }
+
           const data = {
             userId,
             matricule: loan.matricule,
@@ -111,12 +124,14 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
             status: loan.status,
             renewalCount: loan.renewalCount,
             fineAmount: loan.fineAmount,
+            renewalRequestedAt: renewal.renewalRequestedAt,
+            renewalRefusedAt: renewal.renewalRefusedAt,
           };
 
           await tx.loan.upsert({
             where: { externalId: loan.externalId },
             create: { externalId: loan.externalId, ...data },
-            update: { ...data, ...(renewalProcessed ? { renewalRequestedAt: null } : {}) },
+            update: data,
           });
 
           if (loan.availableCopies !== undefined) {
@@ -124,6 +139,24 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
             await tx.book.updateMany({
               where: { id: book.id, availableCopies: { not: loan.availableCopies } },
               data: { availableCopies: loan.availableCopies },
+            });
+          }
+
+          if (userId && renewal.outcome === 'granted') {
+            await createNotification(tx, {
+              ...notificationTexts.renewalGranted(book.title, loan.dueDate),
+              userId,
+              dedupeKey: `loan:${loan.externalId}:renewal-granted:${loan.dueDate.toISOString()}`,
+              source: 'site',
+            });
+          }
+
+          if (userId && renewal.outcome === 'refused') {
+            await createNotification(tx, {
+              ...notificationTexts.renewalRefused(book.title),
+              userId,
+              dedupeKey: `loan:${loan.externalId}:renewal-refused`,
+              source: 'site',
             });
           }
 
@@ -149,6 +182,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           });
         }
       } catch (error) {
+        if (error instanceof LoanItemRejected) {
+          rejectedDetails.push({ index, externalId: loan.externalId, reason: error.message });
+          continue;
+        }
+
         logger.error('Loan upsert failed', { index, error: error instanceof Error ? error.message : 'unknown error' });
         rejectedDetails.push({ index, externalId: loan.externalId, reason: 'Erreur interne lors de l’enregistrement' });
       }

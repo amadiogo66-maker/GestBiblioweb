@@ -34,6 +34,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     return jsonResponse({ success: true, message: `${acknowledged} événement(s) acquitté(s)`, data: { acknowledged } });
   } catch (error) {
     logger.error('Events ack failed', { error: error instanceof Error ? error.message : 'unknown error' });
+    await logActivity({ action: 'events.ack.error' });
     return jsonResponse({ success: false, message: 'Impossible d’acquitter les événements' }, 500);
   }
 }

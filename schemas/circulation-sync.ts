@@ -28,6 +28,7 @@ export const loanSyncItemSchema = z
     // Borne de la colonne Decimal(10, 2).
     fineAmount: z.number().finite().min(0).max(99_999_999.99).nullable().optional(),
     availableCopies: z.number().int().min(0).max(MAX_INT).optional(),
+    renewalDecision: z.enum(['REFUSED']).optional(),
   })
   .superRefine((loan, context) => {
     if (loan.status === 'RETURNED' && !loan.returnDate) {

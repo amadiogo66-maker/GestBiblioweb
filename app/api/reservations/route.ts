@@ -1,4 +1,4 @@
-import { BookStatus, LoanStatus, ReservationStatus } from '@prisma/client';
+import { BookStatus, LoanStatus, Prisma, ReservationStatus } from '@prisma/client';
 import { NextResponse, type NextRequest } from 'next/server';
 import { createReservationSchema, listReservationsSchema } from '@/schemas/reservation';
 import { jsonResponse, validationErrorResponse } from '@/lib/api';
@@ -166,6 +166,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     return jsonResponse({ success: true, message: 'Réservation enregistrée, vous serez prévenu lorsque l’ouvrage sera prêt', data: reservation }, 201);
   } catch (error) {
+    // Deux demandes simultanées : l'index unique partiel garantit une seule ligne.
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+      return jsonResponse({ success: false, message: 'Vous avez déjà une réservation active pour ce livre' }, 409);
+    }
+
     if (error instanceof Error) {
       if (error.message === 'BOOK_ALREADY_BORROWED') {
         return jsonResponse({ success: false, message: 'Vous avez déjà un emprunt actif pour ce livre' }, 409);

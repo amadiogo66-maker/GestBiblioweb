@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { jsonResponse, validationErrorResponse } from '@/lib/api';
 import { rejectInvalidApiKey } from '@/lib/api-key';
 import { logActivity } from '@/lib/activity-log';
+import { recordCirculationContact } from '@/lib/circulation-status';
 import { logger } from '@/lib/logger';
 import { prisma } from '@/lib/prisma';
 import { eventsQuerySchema } from '@/schemas/circulation-sync';
@@ -16,6 +17,8 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   if (rejectedKey) {
     return rejectedKey;
   }
+
+  await recordCirculationContact();
 
   try {
     const parsed = eventsQuerySchema.safeParse(Object.fromEntries(request.nextUrl.searchParams.entries()));
@@ -32,11 +35,15 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       take: limit,
     });
 
-    await logActivity({ action: 'events.read', details: { count: events.length } });
+    // Une lecture vide n'est pas journalisée : le logiciel interroge en continu.
+    if (events.length > 0) {
+      await logActivity({ action: 'events.read', details: { count: events.length } });
+    }
 
     return jsonResponse({ success: true, data: { events, nextAfter: events.at(-1)?.seq ?? after } });
   } catch (error) {
     logger.error('Events read failed', { error: error instanceof Error ? error.message : 'unknown error' });
+    await logActivity({ action: 'events.read.error' });
     return jsonResponse({ success: false, message: 'Impossible de lire les événements' }, 500);
   }
 }

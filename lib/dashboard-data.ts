@@ -1,6 +1,6 @@
 import { LoanStatus, ReservationStatus } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
-import { loanSelect, reservationSelect, type LoanWithBook, type ReservationWithBook } from '@/lib/circulation';
+import { attachOrphanLoans, loanSelect, reservationSelect, type LoanWithBook, type ReservationWithBook } from '@/lib/circulation';
 
 export interface DashboardOverview {
   stats: {
@@ -13,6 +13,8 @@ export interface DashboardOverview {
 }
 
 export async function getDashboardOverview(userId: string): Promise<DashboardOverview> {
+  await attachOrphanLoans(userId);
+
   const [activeLoans, pendingReservations, unreadNotifications, recentLoans, recentReservations] =
     await prisma.$transaction([
       prisma.loan.count({ where: { userId, status: LoanStatus.ACTIVE } }),

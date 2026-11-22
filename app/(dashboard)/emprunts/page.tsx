@@ -5,7 +5,9 @@ import { BookX } from 'lucide-react';
 import type { ReactElement } from 'react';
 import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
-import { canRequestRenewal, loanSelect } from '@/lib/circulation';
+import { attachOrphanLoans, canRequestRenewal, loanSelect } from '@/lib/circulation';
+import { isCirculationReachable } from '@/lib/circulation-status';
+import { CirculationNotice } from '@/components/shared/CirculationNotice';
 import { LoanCard } from '@/components/dashboard/LoanCard';
 import { cn } from '@/lib/utils';
 
@@ -40,6 +42,9 @@ export default async function EmpruntsPage({ searchParams }: EmpruntsPageProps):
         ? { status: { in: [LoanStatus.RETURNED, LoanStatus.LOST] } }
         : {};
 
+  await attachOrphanLoans(session.user.id);
+
+  const reachable = await isCirculationReachable();
   const loans = await prisma.loan.findMany({
     where: { userId: session.user.id, ...statusFilter },
     select: loanSelect,
@@ -52,6 +57,8 @@ export default async function EmpruntsPage({ searchParams }: EmpruntsPageProps):
         <h1 className="font-serif text-2xl font-semibold text-primary">Mes emprunts</h1>
         <p className="mt-1 text-sm text-slate-500">Consultez et renouvelez vos emprunts.</p>
       </div>
+
+      {reachable ? null : <CirculationNotice />}
 
       <div className="flex gap-2">
         {STATUS_FILTERS.map((item) => (

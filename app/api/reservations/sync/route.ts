@@ -4,6 +4,7 @@ import { rejectInvalidApiKey } from '@/lib/api-key';
 import { logActivity } from '@/lib/activity-log';
 import { evaluateReservationTransition } from '@/lib/circulation';
 import { logger } from '@/lib/logger';
+import { createNotification, notificationTexts } from '@/lib/notifications';
 import { prisma } from '@/lib/prisma';
 import { reservationSyncItemSchema, reservationsSyncSchema } from '@/schemas/circulation-sync';
 
@@ -54,7 +55,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       const { reservationId, status, expiryDate } = item.data;
 
       try {
-        const current = await prisma.reservation.findUnique({ where: { id: reservationId }, select: { status: true } });
+        const current = await prisma.reservation.findUnique({
+          where: { id: reservationId },
+          select: { status: true, userId: true, expiryDate: true, book: { select: { title: true } } },
+        });
 
         if (!current) {
           rejectedDetails.push({ index, reservationId, reason: 'Réservation inconnue' });
@@ -73,13 +77,39 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           continue;
         }
 
-        // Conditionnelle : une annulation simultanée de l'utilisateur n'est jamais écrasée.
-        const { count } = await prisma.reservation.updateMany({
-          where: { id: reservationId, status: current.status },
-          data: { status, ...(expiryDate ? { expiryDate } : {}) },
+        const applied = await prisma.$transaction(async (tx) => {
+          // Conditionnelle : une annulation simultanée de l'utilisateur n'est jamais écrasée.
+          const { count } = await tx.reservation.updateMany({
+            where: { id: reservationId, status: current.status },
+            data: { status, ...(expiryDate ? { expiryDate } : {}) },
+          });
+
+          if (count !== 1) {
+            return false;
+          }
+
+          if (status === 'READY') {
+            await createNotification(tx, {
+              ...notificationTexts.reservationReady(current.book.title, expiryDate ?? current.expiryDate),
+              userId: current.userId,
+              dedupeKey: `reservation:${reservationId}:ready`,
+              source: 'site',
+            });
+          }
+
+          if (status === 'EXPIRED') {
+            await createNotification(tx, {
+              ...notificationTexts.reservationExpired(current.book.title),
+              userId: current.userId,
+              dedupeKey: `reservation:${reservationId}:expired`,
+              source: 'site',
+            });
+          }
+
+          return true;
         });
 
-        if (count === 1) {
+        if (applied) {
           updated += 1;
         } else {
           rejectedDetails.push({ index, reservationId, reason: 'Statut modifié entre-temps : rejouer cet élément' });

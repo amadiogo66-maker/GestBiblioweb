@@ -14,11 +14,14 @@ function digest(value: string): Buffer {
  * invalide), avec les mêmes messages que les webhooks existants. La comparaison
  * porte sur des empreintes de même longueur, à temps constant.
  */
-export function rejectInvalidApiKey(request: Request): NextResponse<ApiResponse<never>> | null {
+export function rejectInvalidApiKey(
+  request: Request,
+  missingKeyLog = 'Gest Biblio API key is not configured'
+): NextResponse<ApiResponse<never>> | null {
   const expected = process.env.GEST_BIBLIO_API_KEY;
 
   if (!expected) {
-    logger.error('Gest Biblio API key is not configured');
+    logger.error(missingKeyLog);
     return jsonResponse({ success: false, message: 'Synchronisation indisponible' }, 500);
   }
 

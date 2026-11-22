@@ -12,6 +12,8 @@ import { AvailabilityBadge } from '@/components/ouvrage/AvailabilityBadge';
 import { BookActions } from '@/components/ouvrage/BookActions';
 import { SimilarBooks } from '@/components/ouvrage/SimilarBooks';
 import { EmptyState } from '@/components/ouvrage/EmptyState';
+import { CirculationNotice } from '@/components/shared/CirculationNotice';
+import { isCirculationReachable } from '@/lib/circulation-status';
 
 export const dynamic = 'force-dynamic';
 
@@ -53,6 +55,7 @@ export default async function OuvragePage({ params }: OuvragePageProps): Promise
     reservationStatus = reservation?.status ?? null;
   }
 
+  const reachable = await isCirculationReachable();
   const similarBooks = await prisma.book.findMany({
     where: { category: book.category, id: { not: book.id } },
     select: bookSelect,
@@ -80,6 +83,7 @@ export default async function OuvragePage({ params }: OuvragePageProps): Promise
               totalCopies={book.totalCopies}
               status={book.status}
             />
+            {reachable ? null : <CirculationNotice />}
             <BookActions
               bookId={book.id}
               availableCopies={book.availableCopies}

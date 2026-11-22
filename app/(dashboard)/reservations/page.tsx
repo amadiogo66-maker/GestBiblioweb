@@ -6,6 +6,8 @@ import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { reservationSelect } from '@/lib/circulation';
 import { ReservationCard } from '@/components/dashboard/ReservationCard';
+import { CirculationNotice } from '@/components/shared/CirculationNotice';
+import { isCirculationReachable } from '@/lib/circulation-status';
 
 export const dynamic = 'force-dynamic';
 
@@ -16,6 +18,7 @@ export default async function ReservationsPage(): Promise<ReactElement> {
     redirect('/connexion');
   }
 
+  const reachable = await isCirculationReachable();
   const reservations = await prisma.reservation.findMany({
     where: { userId: session.user.id },
     select: reservationSelect,
@@ -28,6 +31,8 @@ export default async function ReservationsPage(): Promise<ReactElement> {
         <h1 className="font-serif text-2xl font-semibold text-primary">Mes réservations</h1>
         <p className="mt-1 text-sm text-slate-500">Suivez vos réservations et votre place sur liste d&rsquo;attente.</p>
       </div>
+
+      {reachable ? null : <CirculationNotice />}
 
       {reservations.length === 0 ? (
         <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed border-slate-300 bg-white py-16 text-center">

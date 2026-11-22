@@ -10,6 +10,7 @@ import { recordSiteEvent } from '@/lib/site-events';
 export const runtime = 'nodejs';
 
 const ALREADY_REQUESTED_MESSAGE = 'Une demande de renouvellement est déjà en attente';
+const REFUSED_MESSAGE = 'Ce renouvellement a été refusé, rapprochez-vous du guichet';
 
 interface RenewLoanRouteContext {
   params: Promise<{
@@ -47,6 +48,7 @@ export async function PATCH(request: NextRequest, context: RenewLoanRouteContext
         dueDate: true,
         renewalCount: true,
         renewalRequestedAt: true,
+        renewalRefusedAt: true,
         status: true,
         book: { select: { externalId: true } },
       },
@@ -69,6 +71,10 @@ export async function PATCH(request: NextRequest, context: RenewLoanRouteContext
       );
     }
 
+    if (loan.renewalRefusedAt) {
+      return jsonResponse({ success: false, message: REFUSED_MESSAGE }, 409);
+    }
+
     if (loan.renewalRequestedAt) {
       return jsonResponse({ success: false, message: ALREADY_REQUESTED_MESSAGE }, 409);
     }
@@ -77,7 +83,7 @@ export async function PATCH(request: NextRequest, context: RenewLoanRouteContext
     const requestedLoan = await prisma.$transaction(async (tx) => {
       const requestedAt = new Date();
       const { count } = await tx.loan.updateMany({
-        where: { id: loan.id, userId: user.id, status: LoanStatus.ACTIVE, renewalRequestedAt: null },
+        where: { id: loan.id, userId: user.id, status: LoanStatus.ACTIVE, renewalRequestedAt: null, renewalRefusedAt: null },
         data: { renewalRequestedAt: requestedAt },
       });
 
@@ -103,6 +109,9 @@ export async function PATCH(request: NextRequest, context: RenewLoanRouteContext
         bookExternalId: loan.book.externalId,
         requestedAt: requestedAt.toISOString(),
         currentDueDate: updated.dueDate.toISOString(),
+        borrowDate: updated.borrowDate.toISOString(),
+        renewalCount: updated.renewalCount,
+        fineAmount: updated.fineAmount === null ? null : Number(updated.fineAmount),
       });
 
       return updated;

@@ -1,7 +1,7 @@
-import { timingSafeEqual } from 'crypto';
 import { NextResponse, type NextRequest } from 'next/server';
 import { membersSyncSchema, libraryMemberInputSchema } from '@/schemas/library-member';
 import { jsonResponse, validationErrorResponse } from '@/lib/api';
+import { rejectInvalidApiKey } from '@/lib/api-key';
 import { prisma } from '@/lib/prisma';
 import { logger } from '@/lib/logger';
 import { UnresolvedDepartments, loadDepartmentIndex, lookupDepartmentId } from '@/lib/departments';
@@ -14,19 +14,6 @@ interface RejectedMember {
   reason: string;
 }
 
-function isValidApiKey(apiKey: string | null): boolean {
-  const expectedApiKey = process.env.GEST_BIBLIO_API_KEY;
-
-  if (!apiKey || !expectedApiKey) {
-    return false;
-  }
-
-  const provided = Buffer.from(apiKey);
-  const expected = Buffer.from(expectedApiKey);
-
-  return provided.length === expected.length && timingSafeEqual(provided, expected);
-}
-
 function extractMatricule(raw: unknown): string | undefined {
   if (raw && typeof raw === 'object' && 'matricule' in raw && typeof (raw as { matricule: unknown }).matricule === 'string') {
     return (raw as { matricule: string }).matricule;
@@ -36,13 +23,10 @@ function extractMatricule(raw: unknown): string | undefined {
 }
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
-  if (!process.env.GEST_BIBLIO_API_KEY) {
-    logger.error('Gest Biblio members sync API key is not configured');
-    return jsonResponse({ success: false, message: 'Synchronisation indisponible' }, 500);
-  }
+  const rejectedKey = rejectInvalidApiKey(request, 'Gest Biblio members sync API key is not configured');
 
-  if (!isValidApiKey(request.headers.get('x-api-key'))) {
-    return jsonResponse({ success: false, message: 'Clé API invalide' }, 401);
+  if (rejectedKey) {
+    return rejectedKey;
   }
 
   try {

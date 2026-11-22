@@ -102,7 +102,11 @@ export function LoanCard({ loan, canRenew }: LoanCardProps): ReactElement {
         ) : null}
       </div>
 
-      {isRequested && loan.status === 'ACTIVE' ? (
+      {loan.renewalRefusedAt && loan.status === 'ACTIVE' ? (
+        <p className="shrink-0 text-sm font-medium text-danger sm:max-w-[14rem]">
+          Renouvellement refusé, rapprochez-vous du guichet
+        </p>
+      ) : isRequested && loan.status === 'ACTIVE' ? (
         <Button type="button" variant="outline" size="sm" disabled className="shrink-0">
           <RefreshCw className="h-4 w-4" aria-hidden="true" />
           Renouvellement demandé

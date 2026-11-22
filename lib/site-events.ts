@@ -14,6 +14,10 @@ export interface SiteEventPayloads {
     bookExternalId: string;
     requestedAt: string;
     currentDueDate: string;
+    /** État courant du prêt, pour qu'un client puisse répondre par un loans/sync complet. */
+    borrowDate: string;
+    renewalCount: number;
+    fineAmount: number | null;
   };
 }
 

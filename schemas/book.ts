@@ -53,7 +53,26 @@ export const updateBookSchema = bookBaseSchema
     }
   );
 
+/**
+ * Livre reçu du logiciel : mêmes champs, mais SANS valeurs par défaut, afin de
+ * distinguer un champ absent (conservé à la mise à jour) d'une valeur envoyée.
+ */
+const syncBookInputSchema = bookBaseSchema
+  .extend({
+    totalCopies: z.number().int().min(1).max(10000).optional(),
+    status: z.nativeEnum(BookStatus).optional(),
+    isNew: z.boolean().optional(),
+    loanCount: z.number().int().min(0).max(100000).optional(),
+  })
+  .refine(
+    (data) => data.availableCopies === undefined || data.totalCopies === undefined || data.availableCopies <= data.totalCopies,
+    {
+      message: 'Available copies cannot exceed total copies',
+      path: ['availableCopies'],
+    }
+  );
+
 export const syncBookSchema = z.object({
   action: z.enum(['CREATE', 'UPDATE', 'DELETE']),
-  book: createBookSchema,
+  book: syncBookInputSchema,
 });

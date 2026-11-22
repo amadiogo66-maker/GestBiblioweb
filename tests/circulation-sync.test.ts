@@ -3,6 +3,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vites
 import { NextRequest } from 'next/server';
 import { prisma } from './helpers/local-db';
 import { runTsScript } from './helpers/run-script';
+import { restoreCirculationContact, snapshotCirculationContact } from './helpers/circulation-contact';
 
 vi.mock('@/lib/auth', () => ({ auth: vi.fn() }));
 // Implémentation réelle, avec possibilité de provoquer un échec d'écriture.
@@ -40,11 +41,12 @@ const authMock = vi.mocked(auth as unknown as (...args: unknown[]) => Promise<un
 const userIds: string[] = [];
 let baselineSeq = 0;
 let counter = 0;
-let bookA = { id: '', externalId: `CIRC-BOOK-A-${suffix}` };
-let bookB = { id: '', externalId: `CIRC-BOOK-B-${suffix}` };
-let memberWithAccount = `CIRC-M1-${suffix}`;
-const memberNoAccount = `CIRC-M2-${suffix}`;
+let bookA = { id: '', externalId: `TEST-CIRC-BOOK-A-${suffix}` };
+let bookB = { id: '', externalId: `TEST-CIRC-BOOK-B-${suffix}` };
+let memberWithAccount = `TEST-CIRC-M1-${suffix}`;
+const memberNoAccount = `TEST-CIRC-M2-${suffix}`;
 let accountId = '';
+let restoreContact: Awaited<ReturnType<typeof snapshotCirculationContact>> = null;
 
 const uid = (prefix: string): string => {
   counter += 1;
@@ -77,7 +79,7 @@ const params = (id: string) => ({ params: Promise.resolve({ id }) });
 
 function loan(overrides: Record<string, unknown> = {}) {
   return {
-    externalId: uid('CIRC-LOAN'),
+    externalId: uid('TEST-CIRC-LOAN'),
     matricule: memberWithAccount,
     bookExternalId: bookA.externalId,
     borrowDate: '2026-11-01T09:00:00.000Z',
@@ -95,12 +97,17 @@ async function ackAll(): Promise<void> {
 }
 
 async function freshReservation(status: 'PENDING' | 'READY' | 'FULFILLED' | 'EXPIRED' | 'CANCELLED'): Promise<string> {
-  const row = await prisma.reservation.create({ data: { userId: accountId, bookId: bookB.id, status } });
+  // Un livre par réservation : l'index partiel interdit deux réservations actives identiques.
+  const book = await prisma.book.create({
+    data: { externalId: uid('TEST-CIRC-BOOK'), isbn: uid('ISBN'), title: 'T', author: 'A', department: 'D', category: 'C' },
+  });
+  const row = await prisma.reservation.create({ data: { userId: accountId, bookId: book.id, status } });
   return row.id;
 }
 
 beforeAll(async () => {
   process.env.GEST_BIBLIO_API_KEY = apiKey;
+  restoreContact = await snapshotCirculationContact();
   baselineSeq = (await prisma.siteEvent.aggregate({ _max: { seq: true } }))._max.seq ?? 0;
   const makeBook = (externalId: string, isbn: string) =>
     prisma.book.create({
@@ -136,7 +143,8 @@ afterAll(async () => {
   if (originalKey === undefined) delete process.env.GEST_BIBLIO_API_KEY;
   else process.env.GEST_BIBLIO_API_KEY = originalKey;
   await prisma.siteEvent.deleteMany({ where: { seq: { gt: baselineSeq } } });
-  await prisma.loan.deleteMany({ where: { OR: [{ externalId: { contains: suffix } }, { externalId: { startsWith: 'DEMO-' } }, { userId: { in: userIds } }] } });
+  await prisma.notification.deleteMany({ where: { userId: { in: userIds } } });
+  await prisma.loan.deleteMany({ where: { OR: [{ externalId: { contains: suffix } }, { userId: { in: userIds } }] } });
   await prisma.reservation.deleteMany({ where: { userId: { in: userIds } } });
   await prisma.activityLog.deleteMany({
     where: {
@@ -150,6 +158,7 @@ afterAll(async () => {
   await prisma.libraryMember.deleteMany({ where: { matricule: { contains: suffix } } });
   await prisma.book.deleteMany({ where: { externalId: { contains: suffix } } });
   await prisma.rateLimitBucket.deleteMany({ where: { windowStart: { gte: new Date(startedAt.getTime() - 1000) } } });
+  await restoreCirculationContact(restoreContact);
 });
 
 describe('authentification des nouvelles routes', () => {
@@ -277,7 +286,7 @@ describe('POST /api/loans/sync', () => {
 
 describe('inscription d’un membre ayant déjà des prêts', () => {
   it('rattache ses prêts dans la transaction, réponse inchangée', async () => {
-    const matricule = `CIRC-M3-${suffix}`;
+    const matricule = `TEST-CIRC-M3-${suffix}`;
     await prisma.libraryMember.create({ data: { matricule, nom: 'Nouveau', prenom: 'Membre', dateNaissance: new Date('2001-01-01') } });
     const orphan = loan({ matricule });
     await syncLoans([orphan]);
@@ -340,7 +349,7 @@ describe('comportement du site', () => {
 
   it('échec de l’écriture de l’événement : aucune réservation créée (même transaction)', async () => {
     const book = await prisma.book.create({
-      data: { externalId: uid('CIRC-BOOK'), isbn: uid('ISBN'), title: 'T', author: 'A', department: 'D', category: 'C' },
+      data: { externalId: uid('TEST-CIRC-BOOK'), isbn: uid('ISBN'), title: 'T', author: 'A', department: 'D', category: 'C' },
     });
     as(accountId);
     eventFailure.enabled = true;
@@ -396,9 +405,9 @@ describe('comportement du site', () => {
     const base = { userId: accountId, bookId: bookB.id, borrowDate: new Date('2026-10-01') };
     const future = new Date(Date.now() + 86_400_000);
     const noExternal = await prisma.loan.create({ data: { ...base, dueDate: future } });
-    const maxed = await prisma.loan.create({ data: { ...base, dueDate: future, externalId: uid('CIRC-LOAN'), renewalCount: 2 } });
-    const late = await prisma.loan.create({ data: { ...base, dueDate: new Date(Date.now() - 86_400_000), externalId: uid('CIRC-LOAN') } });
-    const rollback = await prisma.loan.create({ data: { ...base, dueDate: future, externalId: uid('CIRC-LOAN') } });
+    const maxed = await prisma.loan.create({ data: { ...base, dueDate: future, externalId: uid('TEST-CIRC-LOAN'), renewalCount: 2 } });
+    const late = await prisma.loan.create({ data: { ...base, dueDate: new Date(Date.now() - 86_400_000), externalId: uid('TEST-CIRC-LOAN') } });
+    const rollback = await prisma.loan.create({ data: { ...base, dueDate: future, externalId: uid('TEST-CIRC-LOAN') } });
     as(accountId);
 
     const refused = await json(await renew(site('PATCH'), params(noExternal.id)));
@@ -582,7 +591,7 @@ describe('POST /api/reservations/sync', () => {
 
 describe('non-régression et script de démonstration', () => {
   it('books/sync UPDATE sans availableCopies : ne réécrit pas la disponibilité ; création et valeur explicite inchangées', async () => {
-    const externalId = uid('CIRC-BOOK');
+    const externalId = uid('TEST-CIRC-BOOK');
     const book = { externalId, title: 'Livre', author: 'Auteur', isbn: `97801${String(counter).padStart(8, '0')}`, department: 'Droit', category: 'Test', totalCopies: 5 };
     const call = async (action: string, data: unknown) => json(await booksSync(webhook('/api/books/sync', { action, book: data })));
 
@@ -593,12 +602,14 @@ describe('non-régression et script de démonstration', () => {
   });
 
   it('db:seed-demo-loans : exige --yes, idempotent, ne touche ni utilisateurs ni mots de passe', async () => {
-    await prisma.loan.deleteMany({ where: { externalId: { startsWith: 'DEMO-' } } });
+    // Les prêts DEMO- déjà présents appartiennent à la démo locale : ils ne sont jamais supprimés.
+    const demoWhere = { externalId: { startsWith: 'DEMO-' } };
+    const present = (await prisma.loan.findMany({ where: demoWhere, select: { externalId: true } })).map((row) => row.externalId as string);
     const users = () => prisma.$queryRawUnsafe<unknown[]>('SELECT row_to_json(u) FROM "User" u ORDER BY u."id"');
     const before = await users();
 
     expect(runTsScript('scripts/seed-demo-loans.ts')).toContain('Simulation');
-    expect(await prisma.loan.count({ where: { externalId: { startsWith: 'DEMO-' } } })).toBe(0);
+    expect(await prisma.loan.count({ where: demoWhere })).toBe(present.length);
 
     runTsScript('scripts/seed-demo-loans.ts', ['--yes']);
     const first = await prisma.loan.findMany({ where: { externalId: { startsWith: 'DEMO-' } }, orderBy: { externalId: 'asc' } });
@@ -609,6 +620,6 @@ describe('non-régression et script de démonstration', () => {
     expect(first.map((row) => row.status).sort()).toEqual(['ACTIVE', 'ACTIVE', 'RETURNED']);
     expect(second).toEqual(first);
     expect(await users()).toEqual(before);
-    await prisma.loan.deleteMany({ where: { externalId: { startsWith: 'DEMO-' } } });
+    await prisma.loan.deleteMany({ where: { AND: [demoWhere, { externalId: { notIn: present } }] } });
   }, 60_000);
 });

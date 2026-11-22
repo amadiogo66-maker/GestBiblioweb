@@ -55,6 +55,9 @@ export const RATE_LIMITS = {
   mfaFailuresIp: { limit: 20, windowMs: 15 * MINUTE_MS },
 } as const satisfies Record<string, RateLimitRule>;
 
+/** Au-delà de ce délai sans contact, le logiciel de gestion est considéré injoignable. */
+export const CIRCULATION_STALE_MINUTES = 15;
+
 export const MFA_REQUIRED_CODE = 'mfa_required';
 export const CROSS_ORIGIN_MESSAGE = 'Origine de la requête non autorisée';
 
