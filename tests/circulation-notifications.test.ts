@@ -242,7 +242,7 @@ describe('refus de renouvellement', () => {
     await syncLoans([refused]);
     row = await prisma.loan.findUniqueOrThrow({ where: { id } });
     expect(row.renewalRefusedAt).toEqual(firstRefusal);
-    expect(await byKey(`loan:${item.externalId}:renewal-refused`)).toHaveLength(1);
+    expect(await byKey(`loan:${item.externalId}:renewal-refused:${new Date(item.dueDate as string).toISOString()}`)).toHaveLength(1);
 
     as(accountId);
     const blocked = await json(await renew(site('PATCH'), params(id)));
@@ -252,6 +252,28 @@ describe('refus de renouvellement', () => {
     await syncLoans([{ ...item, dueDate: new Date(Date.now() + 18 * DAY).toISOString() }]);
     expect((await prisma.loan.findUniqueOrThrow({ where: { id } })).renewalRefusedAt).toBeNull();
     expect((await renew(site('PATCH'), params(id))).status).toBe(200);
+  });
+
+  it('second refus après un changement d’échéance : nouvelle notification ; même refus rejoué : aucun doublon', async () => {
+    const { item, id } = await requestedLoan();
+    const refusalKeys = async () =>
+      (await prisma.notification.findMany({ where: { dedupeKey: { startsWith: `loan:${item.externalId}:renewal-refused:` } } })).map((row) => row.dedupeKey);
+
+    await syncLoans([{ ...item, renewalDecision: 'REFUSED' }]);
+    await syncLoans([{ ...item, renewalDecision: 'REFUSED' }]);
+    expect(await refusalKeys()).toHaveLength(1);
+
+    const newDue = new Date(new Date(item.dueDate as string).getTime() + 5 * DAY).toISOString();
+    const moved = { ...item, dueDate: newDue };
+    await syncLoans([moved]);
+    as(accountId);
+    expect((await renew(site('PATCH'), params(id))).status).toBe(200);
+    await syncLoans([{ ...moved, renewalDecision: 'REFUSED' }]);
+    await syncLoans([{ ...moved, renewalDecision: 'REFUSED' }]);
+
+    const keys = await refusalKeys();
+    expect(keys).toHaveLength(2);
+    expect(keys).toContain(`loan:${item.externalId}:renewal-refused:${newDue}`);
   });
 
   it('refus levé quand le prêt n’est plus ACTIVE ; refus avec échéance modifiée rejeté seul', async () => {

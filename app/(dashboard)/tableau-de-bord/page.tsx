@@ -31,7 +31,7 @@ export default async function TableauDeBordPage(): Promise<ReactElement> {
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <StatCard icon={BookMarked} label="Emprunts actifs" value={stats.activeLoans} href="/emprunts" />
         <StatCard icon={Bookmark} label="Réservations en attente" value={stats.pendingReservations} href="/reservations" />
-        <StatCard icon={Bell} label="Notifications non lues" value={stats.unreadNotifications} href="/profil" />
+        <StatCard icon={Bell} label="Notifications non lues" value={stats.unreadNotifications} href="/notifications" />
       </div>
 
       <section className="flex flex-col gap-4">

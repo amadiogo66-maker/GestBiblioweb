@@ -1,4 +1,4 @@
-import { addDays, format } from 'date-fns';
+import { addDays, format, formatDistance } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
@@ -15,6 +15,11 @@ export function formatDate(date: Date | string, formatPattern = 'dd/MM/yyyy'): s
   }
 
   return format(value, formatPattern, { locale: fr });
+}
+
+/** Date relative en français, par exemple « il y a 3 heures ». */
+export function formatRelativeDate(date: Date, now = new Date()): string {
+  return formatDistance(date, now, { addSuffix: true, locale: fr });
 }
 
 export function generateLibraryCardNumber(): string {

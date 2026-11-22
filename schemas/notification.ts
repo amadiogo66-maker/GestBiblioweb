@@ -27,6 +27,12 @@ export const notificationSyncSchema = z
     path: ['userId'],
   });
 
+/** Paramètres d'URL de /notifications : une valeur invalide revient au défaut. */
+export const notificationsPageSchema = z.object({
+  filter: z.enum(['all', 'unread']).catch('all'),
+  page: z.coerce.number().int().min(1).max(100_000).catch(1),
+});
+
 export const notificationsBatchSchema = z.object({
   notifications: z.array(z.unknown()).min(1).max(1000),
 });

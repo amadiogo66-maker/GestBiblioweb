@@ -155,7 +155,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
             await createNotification(tx, {
               ...notificationTexts.renewalRefused(book.title),
               userId,
-              dedupeKey: `loan:${loan.externalId}:renewal-refused`,
+              dedupeKey: `loan:${loan.externalId}:renewal-refused:${loan.dueDate.toISOString()}`,
               source: 'site',
             });
           }

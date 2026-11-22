@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Bookmark, BookMarked, LayoutDashboard, UserCircle } from 'lucide-react';
+import { Bell, Bookmark, BookMarked, LayoutDashboard, UserCircle } from 'lucide-react';
 import type { ReactElement } from 'react';
 import { Container } from '@/components/ui/Container';
 import { cn } from '@/lib/utils';
@@ -11,6 +11,7 @@ const NAV_ITEMS = [
   { href: '/tableau-de-bord', label: "Vue d'ensemble", icon: LayoutDashboard },
   { href: '/emprunts', label: 'Mes emprunts', icon: BookMarked },
   { href: '/reservations', label: 'Mes réservations', icon: Bookmark },
+  { href: '/notifications', label: 'Notifications', icon: Bell },
   { href: '/profil', label: 'Mon profil', icon: UserCircle },
 ];
 

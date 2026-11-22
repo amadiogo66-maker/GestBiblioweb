@@ -58,6 +58,8 @@ export const RATE_LIMITS = {
 /** Au-delà de ce délai sans contact, le logiciel de gestion est considéré injoignable. */
 export const CIRCULATION_STALE_MINUTES = 15;
 
+export const NOTIFICATIONS_PAGE_SIZE = 20;
+
 export const MFA_REQUIRED_CODE = 'mfa_required';
 export const CROSS_ORIGIN_MESSAGE = 'Origine de la requête non autorisée';
 
