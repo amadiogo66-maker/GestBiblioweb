@@ -5,6 +5,9 @@ import { rejectCrossOrigin, requireActiveUser } from '@/lib/authz';
 import { prisma } from '@/lib/prisma';
 import { logger } from '@/lib/logger';
 import type { PaginatedResponse } from '@/types';
+import { BODY_LIMITS } from '@/lib/constants';
+import { payloadTooLargeResponse, readJsonBody } from '@/lib/json-body';
+import { getClientIp } from '@/lib/client-ip';
 
 export const runtime = 'nodejs';
 
@@ -75,7 +78,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     const { user } = authz;
 
-    const payload = await request.json();
+    const payload = await readJsonBody(request, BODY_LIMITS.default);
     const parsed = attendanceCheckInSchema.safeParse(payload);
 
     if (!parsed.success) {
@@ -93,7 +96,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       data: {
         userId: user.id,
         action: 'attendance.checkin',
-        ipAddress: request.headers.get('x-forwarded-for'),
+        ipAddress: getClientIp(request.headers),
         userAgent: request.headers.get('user-agent'),
         details: { attendanceId: attendance.id, method: attendance.method },
       },
@@ -101,6 +104,12 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     return jsonResponse({ success: true, message: 'Présence enregistrée', data: attendance }, 201);
   } catch (error) {
+    const tooLarge = payloadTooLargeResponse(error);
+
+    if (tooLarge) {
+      return tooLarge;
+    }
+
     logger.error('Attendance check-in failed', { error: error instanceof Error ? error.message : 'unknown error' });
     return jsonResponse({ success: false, message: 'Impossible d’enregistrer la présence' }, 500);
   }

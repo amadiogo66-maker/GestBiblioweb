@@ -6,6 +6,7 @@ import { prisma } from '@/lib/prisma';
 import { logger } from '@/lib/logger';
 import { reservationSelect } from '@/lib/circulation';
 import { recordSiteEvent } from '@/lib/site-events';
+import { getClientIp } from '@/lib/client-ip';
 
 export const runtime = 'nodejs';
 
@@ -54,7 +55,7 @@ export async function PATCH(request: NextRequest, context: CancelReservationRout
         data: {
           userId: user.id,
           action: 'reservation.cancel',
-          ipAddress: request.headers.get('x-forwarded-for'),
+          ipAddress: getClientIp(request.headers),
           userAgent: request.headers.get('user-agent'),
           details: { reservationId: cancelled.id, bookId: cancelled.bookId },
         },

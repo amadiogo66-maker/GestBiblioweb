@@ -1,0 +1,11 @@
+# Sauvegarde de la base : deploy/backup-db.sh (configuration dans deploy/backup.env).
+# CHEMIN À ADAPTER : /opt/gestbiblio = dossier du projet sur le serveur.
+[Unit]
+Description=Gest Biblio - sauvegarde de la base
+Requires=docker.service
+After=docker.service network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/gestbiblio
+ExecStart=/opt/gestbiblio/deploy/backup-db.sh

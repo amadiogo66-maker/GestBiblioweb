@@ -8,6 +8,8 @@ import { consumeRecoveryCode, consumeTotpStep } from '@/lib/staff-mfa-store';
 import { setMfaProofCookie } from '@/lib/staff-mfa-session';
 import { beginMfaRequest, mfaFailure } from '@/lib/staff-mfa-route';
 import { mfaVerifySchema } from '@/schemas/staff-mfa';
+import { BODY_LIMITS } from '@/lib/constants';
+import { payloadTooLargeResponse, readJsonBodyOrNull } from '@/lib/json-body';
 
 export const runtime = 'nodejs';
 
@@ -25,7 +27,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   const { user } = begin;
 
   try {
-    const parsed = mfaVerifySchema.safeParse(await request.json().catch(() => null));
+    const parsed = mfaVerifySchema.safeParse(await readJsonBodyOrNull(request, BODY_LIMITS.default));
 
     if (!parsed.success) {
       return validationErrorResponse(parsed.error);
@@ -66,6 +68,12 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     return response;
   } catch (error) {
+    const tooLarge = payloadTooLargeResponse(error);
+
+    if (tooLarge) {
+      return tooLarge;
+    }
+
     logger.error('MFA verification failed', { error: error instanceof Error ? error.message : 'unknown error' });
     return jsonResponse({ success: false, message: 'Impossible de vérifier le code' }, 500);
   }

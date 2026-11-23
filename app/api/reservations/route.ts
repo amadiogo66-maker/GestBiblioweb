@@ -8,6 +8,9 @@ import { logger } from '@/lib/logger';
 import { reservationSelect } from '@/lib/circulation';
 import { recordSiteEvent } from '@/lib/site-events';
 import type { PaginatedResponse } from '@/types';
+import { BODY_LIMITS } from '@/lib/constants';
+import { payloadTooLargeResponse, readJsonBody } from '@/lib/json-body';
+import { getClientIp } from '@/lib/client-ip';
 
 export const runtime = 'nodejs';
 
@@ -82,7 +85,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     const { user } = authz;
 
-    const payload = await request.json();
+    const payload = await readJsonBody(request, BODY_LIMITS.default);
     const parsed = createReservationSchema.safeParse(payload);
 
     if (!parsed.success) {
@@ -148,7 +151,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         data: {
           userId: user.id,
           action: 'reservation.create',
-          ipAddress: request.headers.get('x-forwarded-for'),
+          ipAddress: getClientIp(request.headers),
           userAgent: request.headers.get('user-agent'),
           details: { reservationId: createdReservation.id, bookId: book.id, status: createdReservation.status },
         },
@@ -166,6 +169,12 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     return jsonResponse({ success: true, message: 'Réservation enregistrée, vous serez prévenu lorsque l’ouvrage sera prêt', data: reservation }, 201);
   } catch (error) {
+    const tooLarge = payloadTooLargeResponse(error);
+
+    if (tooLarge) {
+      return tooLarge;
+    }
+
     // Deux demandes simultanées : l'index unique partiel garantit une seule ligne.
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
       return jsonResponse({ success: false, message: 'Vous avez déjà une réservation active pour ce livre' }, 409);

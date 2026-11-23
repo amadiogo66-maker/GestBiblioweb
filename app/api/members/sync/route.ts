@@ -5,6 +5,9 @@ import { rejectInvalidApiKey } from '@/lib/api-key';
 import { prisma } from '@/lib/prisma';
 import { logger } from '@/lib/logger';
 import { UnresolvedDepartments, loadDepartmentIndex, lookupDepartmentId } from '@/lib/departments';
+import { BODY_LIMITS } from '@/lib/constants';
+import { payloadTooLargeResponse, readJsonBody } from '@/lib/json-body';
+import { getClientIp } from '@/lib/client-ip';
 
 export const runtime = 'nodejs';
 
@@ -30,7 +33,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   }
 
   try {
-    const payload = await request.json();
+    const payload = await readJsonBody(request, BODY_LIMITS.sync);
     const parsed = membersSyncSchema.safeParse(payload);
 
     if (!parsed.success) {
@@ -171,7 +174,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     await prisma.activityLog.create({
       data: {
         action: 'members.sync',
-        ipAddress: request.headers.get('x-forwarded-for'),
+        ipAddress: getClientIp(request.headers),
         userAgent: request.headers.get('user-agent'),
         details: {
           created,
@@ -203,6 +206,12 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       },
     });
   } catch (error) {
+    const tooLarge = payloadTooLargeResponse(error);
+
+    if (tooLarge) {
+      return tooLarge;
+    }
+
     logger.error('Members sync failed', { error: error instanceof Error ? error.message : 'unknown error' });
     return jsonResponse({ success: false, message: 'Impossible de synchroniser les membres' }, 500);
   }

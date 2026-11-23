@@ -6,6 +6,9 @@ import { rejectInvalidApiKey } from '@/lib/api-key';
 import { prisma } from '@/lib/prisma';
 import { logger } from '@/lib/logger';
 import { createNotification, notificationSelect } from '@/lib/notifications';
+import { BODY_LIMITS } from '@/lib/constants';
+import { payloadTooLargeResponse, readJsonBody } from '@/lib/json-body';
+import { getClientIp } from '@/lib/client-ip';
 
 export const runtime = 'nodejs';
 
@@ -74,7 +77,7 @@ async function deliver(item: NotificationItem, userId: string, request: NextRequ
         data: {
           userId,
           action: 'notification.sync.create',
-          ipAddress: request.headers.get('x-forwarded-for'),
+          ipAddress: getClientIp(request.headers),
           userAgent: request.headers.get('user-agent'),
           details: { notificationId: notification.id, type: notification.type },
         },
@@ -172,7 +175,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   }
 
   try {
-    const payload: unknown = await request.json();
+    const payload: unknown = await readJsonBody(request, BODY_LIMITS.sync);
 
     if (payload && typeof payload === 'object' && 'notifications' in payload) {
       const batch = notificationsBatchSchema.safeParse(payload);
@@ -182,6 +185,12 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     return await handleSingle(payload, request);
   } catch (error) {
+    const tooLarge = payloadTooLargeResponse(error);
+
+    if (tooLarge) {
+      return tooLarge;
+    }
+
     logger.error('Notification sync failed', { error: error instanceof Error ? error.message : 'unknown error' });
     return jsonResponse({ success: false, message: 'Impossible de synchroniser la notification' }, 500);
   }

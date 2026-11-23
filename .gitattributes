@@ -1,0 +1,7 @@
+# Fichiers exécutés sous Linux (serveur, conteneurs) : toujours en LF.
+*.sh text eol=lf
+Dockerfile text eol=lf
+.dockerignore text eol=lf
+docker-compose*.yml text eol=lf
+deploy/** text eol=lf
+.env.production.example text eol=lf

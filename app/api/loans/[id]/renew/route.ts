@@ -6,6 +6,7 @@ import { prisma } from '@/lib/prisma';
 import { logger } from '@/lib/logger';
 import { isRenewableLoan, loanSelect } from '@/lib/circulation';
 import { recordSiteEvent } from '@/lib/site-events';
+import { getClientIp } from '@/lib/client-ip';
 
 export const runtime = 'nodejs';
 
@@ -97,7 +98,7 @@ export async function PATCH(request: NextRequest, context: RenewLoanRouteContext
         data: {
           userId: user.id,
           action: 'loan.renewal_requested',
-          ipAddress: request.headers.get('x-forwarded-for'),
+          ipAddress: getClientIp(request.headers),
           userAgent: request.headers.get('user-agent'),
           details: { loanId: updated.id, bookId: updated.bookId },
         },

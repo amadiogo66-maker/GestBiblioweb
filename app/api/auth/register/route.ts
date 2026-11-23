@@ -8,7 +8,9 @@ import { jsonResponse, prismaErrorResponse, validationErrorResponse } from '@/li
 import { registerSchema } from '@/schemas/auth';
 import { createMemberVerificationIdentifier, hashToken } from '@/lib/tokens';
 import { enforceRateLimits, ipRateLimitKey } from '@/lib/rate-limit';
-import { RATE_LIMITS } from '@/lib/constants';
+import { BODY_LIMITS, RATE_LIMITS } from '@/lib/constants';
+import { payloadTooLargeResponse, readJsonBody } from '@/lib/json-body';
+import { getClientIp } from '@/lib/client-ip';
 
 export const runtime = 'nodejs';
 
@@ -32,7 +34,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       return limited;
     }
 
-    const payload = await request.json();
+    const payload = await readJsonBody(request, BODY_LIMITS.default);
     const parsed = registerSchema.safeParse(payload);
 
     if (!parsed.success) {
@@ -116,7 +118,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       data: {
         userId: user.id,
         action: 'auth.register',
-        ipAddress: request.headers.get('x-forwarded-for'),
+        ipAddress: getClientIp(request.headers),
         userAgent: request.headers.get('user-agent'),
       },
     });
@@ -130,6 +132,12 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       201
     );
   } catch (error) {
+    const tooLarge = payloadTooLargeResponse(error);
+
+    if (tooLarge) {
+      return tooLarge;
+    }
+
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
       const targets = Array.isArray(error.meta?.target) ? error.meta.target.map(String) : [];
 

@@ -5,6 +5,8 @@ import { rejectCrossOrigin, requireActiveUser } from '@/lib/authz';
 import { prisma } from '@/lib/prisma';
 import { logger } from '@/lib/logger';
 import { changePasswordSchema } from '@/schemas/user';
+import { BODY_LIMITS } from '@/lib/constants';
+import { payloadTooLargeResponse, readJsonBody } from '@/lib/json-body';
 
 export const runtime = 'nodejs';
 
@@ -24,7 +26,7 @@ export async function PATCH(request: NextRequest): Promise<NextResponse> {
 
     const { user } = authz;
 
-    const payload = await request.json();
+    const payload = await readJsonBody(request, BODY_LIMITS.default);
     const parsed = changePasswordSchema.safeParse(payload);
 
     if (!parsed.success) {
@@ -62,6 +64,12 @@ export async function PATCH(request: NextRequest): Promise<NextResponse> {
 
     return jsonResponse({ success: true, message: 'Mot de passe mis à jour' });
   } catch (error) {
+    const tooLarge = payloadTooLargeResponse(error);
+
+    if (tooLarge) {
+      return tooLarge;
+    }
+
     logger.error('Password change failed', { error: error instanceof Error ? error.message : 'unknown error' });
     return jsonResponse({ success: false, message: 'Impossible de modifier le mot de passe' }, 500);
   }

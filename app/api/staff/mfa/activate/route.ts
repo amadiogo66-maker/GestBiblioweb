@@ -8,6 +8,8 @@ import { consumeTotpStep, deleteActivationCodes, isActivationCodeValid, replaceR
 import { setMfaProofCookie } from '@/lib/staff-mfa-session';
 import { beginMfaRequest, mfaFailure, noStore } from '@/lib/staff-mfa-route';
 import { mfaActivationSchema } from '@/schemas/staff-mfa';
+import { BODY_LIMITS } from '@/lib/constants';
+import { payloadTooLargeResponse, readJsonBodyOrNull } from '@/lib/json-body';
 
 export const runtime = 'nodejs';
 
@@ -28,7 +30,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   const { user } = begin;
 
   try {
-    const parsed = mfaActivationSchema.safeParse(await request.json().catch(() => null));
+    const parsed = mfaActivationSchema.safeParse(await readJsonBodyOrNull(request, BODY_LIMITS.default));
 
     if (!parsed.success) {
       return validationErrorResponse(parsed.error);
@@ -77,6 +79,12 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     return response;
   } catch (error) {
+    const tooLarge = payloadTooLargeResponse(error);
+
+    if (tooLarge) {
+      return tooLarge;
+    }
+
     if (error instanceof StepAlreadyUsedError) {
       return mfaFailure(user.id, request, { stage: 'activation', method: 'totp', reason: 'step_reused' });
     }

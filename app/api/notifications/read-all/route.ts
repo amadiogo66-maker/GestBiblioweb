@@ -3,6 +3,7 @@ import { jsonResponse } from '@/lib/api';
 import { rejectCrossOrigin, requireActiveUser } from '@/lib/authz';
 import { prisma } from '@/lib/prisma';
 import { logger } from '@/lib/logger';
+import { getClientIp } from '@/lib/client-ip';
 
 export const runtime = 'nodejs';
 
@@ -35,7 +36,7 @@ export async function PATCH(request: NextRequest): Promise<NextResponse> {
         data: {
           userId: user.id,
           action: 'notification.read_all',
-          ipAddress: request.headers.get('x-forwarded-for'),
+          ipAddress: getClientIp(request.headers),
           userAgent: request.headers.get('user-agent'),
           details: { count: result.count },
         },

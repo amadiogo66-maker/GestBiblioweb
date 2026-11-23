@@ -4,6 +4,9 @@ import { jsonResponse, validationErrorResponse } from '@/lib/api';
 import { rejectCrossOrigin, requireActiveUser } from '@/lib/authz';
 import { prisma } from '@/lib/prisma';
 import { logger } from '@/lib/logger';
+import { BODY_LIMITS } from '@/lib/constants';
+import { payloadTooLargeResponse, readJsonBody } from '@/lib/json-body';
+import { getClientIp } from '@/lib/client-ip';
 
 export const runtime = 'nodejs';
 
@@ -27,7 +30,7 @@ export async function PATCH(request: NextRequest, context: AttendanceRouteContex
 
     const { user } = authz;
 
-    const payload = await request.json();
+    const payload = await readJsonBody(request, BODY_LIMITS.default);
     const parsed = attendanceCheckoutSchema.safeParse(payload);
 
     if (!parsed.success) {
@@ -60,7 +63,7 @@ export async function PATCH(request: NextRequest, context: AttendanceRouteContex
       data: {
         userId: user.id,
         action: 'attendance.checkout',
-        ipAddress: request.headers.get('x-forwarded-for'),
+        ipAddress: getClientIp(request.headers),
         userAgent: request.headers.get('user-agent'),
         details: { attendanceId: updatedAttendance.id },
       },
@@ -68,6 +71,12 @@ export async function PATCH(request: NextRequest, context: AttendanceRouteContex
 
     return jsonResponse({ success: true, message: 'Présence clôturée', data: updatedAttendance });
   } catch (error) {
+    const tooLarge = payloadTooLargeResponse(error);
+
+    if (tooLarge) {
+      return tooLarge;
+    }
+
     logger.error('Attendance check-out failed', { error: error instanceof Error ? error.message : 'unknown error' });
     return jsonResponse({ success: false, message: 'Impossible de clôturer la présence' }, 500);
   }

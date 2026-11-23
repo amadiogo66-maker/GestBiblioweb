@@ -1,7 +1,8 @@
 import type { NextRequest } from 'next/server';
 import { handlers } from '@/lib/auth';
 import { checkRateLimits, ipRateLimitKey, rateLimitKey, rateLimitedResponse } from '@/lib/rate-limit';
-import { RATE_LIMITS } from '@/lib/constants';
+import { BODY_LIMITS, RATE_LIMITS } from '@/lib/constants';
+import { payloadTooLargeResponse, readBodyText } from '@/lib/json-body';
 import { clearedMfaProofCookieHeader } from '@/lib/staff-mfa-session';
 import { withoutInactiveSession } from '@/lib/session-response';
 
@@ -23,6 +24,20 @@ export async function GET(request: NextRequest): Promise<Response> {
  * `error`/`code` au formulaire (code=rate_limited).
  */
 export async function POST(request: NextRequest): Promise<Response> {
+  // Plafond du corps (connexion, déconnexion) avant qu'Auth.js ne le lise : une
+  // copie du flux est comptée, l'original reste intact pour Auth.js.
+  try {
+    await readBodyText(request.clone(), BODY_LIMITS.default);
+  } catch (error) {
+    const tooLarge = payloadTooLargeResponse(error);
+
+    if (tooLarge) {
+      return tooLarge;
+    }
+
+    throw error;
+  }
+
   if (request.nextUrl.pathname.endsWith('/callback/credentials')) {
     const identifier = await readIdentifier(request);
     const retryAfter = await checkRateLimits([

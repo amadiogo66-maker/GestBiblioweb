@@ -6,6 +6,9 @@ import { rejectInvalidApiKey } from '@/lib/api-key';
 import { prisma } from '@/lib/prisma';
 import { logger } from '@/lib/logger';
 import { UnresolvedDepartments, loadDepartmentIndex, resolveReceivedDepartment } from '@/lib/departments';
+import { BODY_LIMITS } from '@/lib/constants';
+import { payloadTooLargeResponse, readJsonBody } from '@/lib/json-body';
+import { getClientIp } from '@/lib/client-ip';
 
 export const runtime = 'nodejs';
 
@@ -17,7 +20,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   }
 
   try {
-    const payload = await request.json();
+    const payload = await readJsonBody(request, BODY_LIMITS.sync);
     const parsed = syncBookSchema.safeParse(payload);
 
     if (!parsed.success) {
@@ -35,7 +38,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       await prisma.activityLog.create({
         data: {
           action: 'book.sync.delete',
-          ipAddress: request.headers.get('x-forwarded-for'),
+          ipAddress: getClientIp(request.headers),
           userAgent: request.headers.get('user-agent'),
           details: { externalId: deletedBook.externalId, isbn: deletedBook.isbn },
         },
@@ -81,7 +84,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     await prisma.activityLog.create({
       data: {
         action: action === 'CREATE' ? 'book.sync.create' : 'book.sync.update',
-        ipAddress: request.headers.get('x-forwarded-for'),
+        ipAddress: getClientIp(request.headers),
         userAgent: request.headers.get('user-agent'),
         details: {
           externalId: syncedBook.externalId,
@@ -102,6 +105,12 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       },
     });
   } catch (error) {
+    const tooLarge = payloadTooLargeResponse(error);
+
+    if (tooLarge) {
+      return tooLarge;
+    }
+
     const prismaResponse = prismaErrorResponse(error);
 
     if (prismaResponse) {

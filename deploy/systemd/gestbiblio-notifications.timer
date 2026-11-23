@@ -1,0 +1,11 @@
+# Tous les jours à 07:00 (heure du serveur). Persistent : rattrapé après un arrêt.
+[Unit]
+Description=Gest Biblio - rappels d'emprunts (quotidien)
+
+[Timer]
+OnCalendar=*-*-* 07:00:00
+Persistent=true
+RandomizedDelaySec=5min
+
+[Install]
+WantedBy=timers.target

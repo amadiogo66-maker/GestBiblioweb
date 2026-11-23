@@ -5,7 +5,8 @@ import { prisma } from '@/lib/prisma';
 import { logger } from '@/lib/logger';
 import { createMemberVerificationIdentifier, createSecureToken, hashToken } from '@/lib/tokens';
 import { enforceRateLimits, ipRateLimitKey, rateLimitKey } from '@/lib/rate-limit';
-import { RATE_LIMITS } from '@/lib/constants';
+import { BODY_LIMITS, RATE_LIMITS } from '@/lib/constants';
+import { payloadTooLargeResponse, readJsonBody } from '@/lib/json-body';
 
 export const runtime = 'nodejs';
 
@@ -23,7 +24,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       return ipLimited;
     }
 
-    const payload = await request.json();
+    const payload = await readJsonBody(request, BODY_LIMITS.default);
     const parsed = verifyMemberSchema.safeParse(payload);
 
     if (!parsed.success) {
@@ -94,6 +95,12 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       },
     });
   } catch (error) {
+    const tooLarge = payloadTooLargeResponse(error);
+
+    if (tooLarge) {
+      return tooLarge;
+    }
+
     logger.error('Member verification failed', {
       error: error instanceof Error ? error.message : 'unknown error',
     });

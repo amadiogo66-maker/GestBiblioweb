@@ -1,0 +1,11 @@
+# Purge des événements de circulation traités depuis plus de 90 jours : events:purge --yes.
+# CHEMIN À ADAPTER : /opt/gestbiblio = dossier du projet sur le serveur.
+[Unit]
+Description=Gest Biblio - purge des événements traités
+Requires=docker.service
+After=docker.service network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/gestbiblio
+ExecStart=/opt/gestbiblio/deploy/compose.sh run --rm tools npm run events:purge -- --yes --days 90

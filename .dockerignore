@@ -1,0 +1,40 @@
+# Secrets et environnements : jamais dans une image.
+.env
+.env.*
+!.env.example
+!.env.production.example
+*.pem
+*.key
+*.age
+*.gpg
+secrets/
+backups/
+
+# Dépôt, dépendances et sorties de build (reconstruits dans l'image).
+.git
+.gitignore
+node_modules
+.next
+out
+coverage
+*.tsbuildinfo
+
+# Journaux et états locaux.
+*.log
+.dev-server*
+.simulator-state.json
+.simulator-state.json.tmp
+
+# Tests et outillage de développement.
+tests
+vitest.config.ts
+.vscode
+.claude
+.agents
+
+# Fichiers de déploiement : inutiles dans l'image.
+Dockerfile
+.dockerignore
+docker-compose*.yml
+deploy
+*.md

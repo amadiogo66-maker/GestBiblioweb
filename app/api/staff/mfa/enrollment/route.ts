@@ -7,6 +7,8 @@ import { buildOtpauthUri, encryptMfaSecret, generateTotpSecret } from '@/lib/sta
 import { isActivationCodeValid } from '@/lib/staff-mfa-store';
 import { beginMfaRequest, mfaFailure, noStore } from '@/lib/staff-mfa-route';
 import { mfaEnrollmentSchema } from '@/schemas/staff-mfa';
+import { BODY_LIMITS } from '@/lib/constants';
+import { payloadTooLargeResponse, readJsonBodyOrNull } from '@/lib/json-body';
 
 export const runtime = 'nodejs';
 
@@ -26,7 +28,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   const { user } = begin;
 
   try {
-    const parsed = mfaEnrollmentSchema.safeParse(await request.json().catch(() => null));
+    const parsed = mfaEnrollmentSchema.safeParse(await readJsonBodyOrNull(request, BODY_LIMITS.default));
 
     if (!parsed.success) {
       return validationErrorResponse(parsed.error);
@@ -58,6 +60,12 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       })
     );
   } catch (error) {
+    const tooLarge = payloadTooLargeResponse(error);
+
+    if (tooLarge) {
+      return tooLarge;
+    }
+
     logger.error('MFA enrollment failed', { error: error instanceof Error ? error.message : 'unknown error' });
     return jsonResponse({ success: false, message: "Impossible de démarrer l'activation" }, 500);
   }

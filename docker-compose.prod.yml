@@ -1,0 +1,105 @@
+# Gest Biblio Web : production sur un serveur Linux, sans Vercel.
+#
+# Toujours lancer par deploy/compose.sh (il passe --env-file .env.production,
+# qui fournit aussi les variables ${...} ci-dessous) :
+#
+#   deploy/compose.sh up -d --build                       → postgres, app, caddy
+#   deploy/compose.sh run --rm tools npx prisma migrate deploy
+#
+# Seul Caddy publie des ports (80 et 443). L'application et la base ne sont
+# jamais exposées directement : la base n'est que sur le réseau "internal".
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: '10m'
+    max-file: '5'
+
+x-database-url: &database-url postgresql://${POSTGRES_USER:-gestbiblio}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD manquant dans .env.production}@postgres:5432/${POSTGRES_DB:-gestbiblio}?schema=public
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-gestbiblio}
+      POSTGRES_USER: ${POSTGRES_USER:-gestbiblio}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD manquant dans .env.production}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - internal
+    logging: *logging
+
+  app:
+    build:
+      context: .
+      target: app
+    image: gestbiblio-app:${APP_TAG:-latest}
+    restart: unless-stopped
+    env_file: ${GESTBIBLIO_ENV_FILE:-.env.production}
+    environment:
+      DATABASE_URL: *database-url
+    depends_on:
+      postgres:
+        condition: service_healthy
+    # internal : accès à la base ; web : Caddy, et sortie vers les images distantes.
+    networks:
+      - internal
+      - web
+    logging: *logging
+
+  caddy:
+    image: caddy:2.8.4-alpine
+    restart: unless-stopped
+    ports:
+      - '80:80'
+      - '443:443'
+      - '443:443/udp'
+    environment:
+      SITE_ADDRESS: ${SITE_ADDRESS:?SITE_ADDRESS manquant dans .env.production}
+      # Vide : certificat public automatique. "tls internal" : autorité locale de Caddy.
+      CADDY_TLS: ${CADDY_TLS:-}
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - app
+    networks:
+      - web
+    logging: *logging
+
+  # Outils à la demande (migrations, structure, personnel, tâches planifiées).
+  tools:
+    build:
+      context: .
+      target: tools
+    image: gestbiblio-tools:${APP_TAG:-latest}
+    profiles: ['tools']
+    restart: 'no'
+    env_file: ${GESTBIBLIO_ENV_FILE:-.env.production}
+    environment:
+      DATABASE_URL: *database-url
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - internal
+    logging: *logging
+
+networks:
+  # Sans accès extérieur : seule la base et ses clients y sont.
+  internal:
+    internal: true
+  web: {}
+
+volumes:
+  pgdata:
+  caddy_data:
+  caddy_config:

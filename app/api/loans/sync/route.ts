@@ -8,6 +8,8 @@ import { logger } from '@/lib/logger';
 import { createNotification, notificationTexts } from '@/lib/notifications';
 import { prisma } from '@/lib/prisma';
 import { loanSyncItemSchema, loansSyncSchema } from '@/schemas/circulation-sync';
+import { BODY_LIMITS } from '@/lib/constants';
+import { payloadTooLargeResponse, readJsonBodyOrNull } from '@/lib/json-body';
 
 export const runtime = 'nodejs';
 
@@ -46,7 +48,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   await recordCirculationContact();
 
   try {
-    const parsed = loansSyncSchema.safeParse(await request.json().catch(() => null));
+    const parsed = loansSyncSchema.safeParse(await readJsonBodyOrNull(request, BODY_LIMITS.sync));
 
     if (!parsed.success) {
       return validationErrorResponse(parsed.error);
@@ -202,6 +204,12 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       data: { created, updated, rejected, linked, unlinked, warnings, rejectedDetails },
     });
   } catch (error) {
+    const tooLarge = payloadTooLargeResponse(error);
+
+    if (tooLarge) {
+      return tooLarge;
+    }
+
     logger.error('Loans sync failed', { error: error instanceof Error ? error.message : 'unknown error' });
     return jsonResponse({ success: false, message: 'Impossible de synchroniser les prêts' }, 500);
   }

@@ -1,0 +1,5 @@
+# Alternative à systemd : crontab de root (crontab -e). CHEMIN À ADAPTER : /opt/gestbiblio.
+# Journal dans /var/log/gestbiblio-*.log (prévoir logrotate).
+30 2 * * *  /opt/gestbiblio/deploy/backup-db.sh >> /var/log/gestbiblio-backup.log 2>&1
+0  7 * * *  /opt/gestbiblio/deploy/compose.sh run --rm tools npm run notifications:generate -- --yes >> /var/log/gestbiblio-notifications.log 2>&1
+30 3 * * 0  /opt/gestbiblio/deploy/compose.sh run --rm tools npm run events:purge -- --yes --days 90 >> /var/log/gestbiblio-events-purge.log 2>&1

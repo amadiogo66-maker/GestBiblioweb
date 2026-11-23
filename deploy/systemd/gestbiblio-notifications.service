@@ -1,0 +1,11 @@
+# Rappels d'emprunts (retards, échéances proches) : notifications:generate --yes.
+# CHEMIN À ADAPTER : /opt/gestbiblio = dossier du projet sur le serveur.
+[Unit]
+Description=Gest Biblio - rappels d'emprunts
+Requires=docker.service
+After=docker.service network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/gestbiblio
+ExecStart=/opt/gestbiblio/deploy/compose.sh run --rm tools npm run notifications:generate -- --yes

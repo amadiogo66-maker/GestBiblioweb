@@ -5,7 +5,9 @@ import { prisma } from '@/lib/prisma';
 import { logger } from '@/lib/logger';
 import { createPasswordResetIdentifier, createSecureToken, hashToken } from '@/lib/tokens';
 import { enforceRateLimits, ipRateLimitKey, rateLimitKey } from '@/lib/rate-limit';
-import { RATE_LIMITS } from '@/lib/constants';
+import { BODY_LIMITS, RATE_LIMITS } from '@/lib/constants';
+import { payloadTooLargeResponse, readJsonBody } from '@/lib/json-body';
+import { getClientIp } from '@/lib/client-ip';
 
 export const runtime = 'nodejs';
 
@@ -22,7 +24,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       return ipLimited;
     }
 
-    const payload = await request.json();
+    const payload = await readJsonBody(request, BODY_LIMITS.default);
     const parsed = forgotPasswordSchema.safeParse(payload);
 
     if (!parsed.success) {
@@ -70,7 +72,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         data: {
           userId: user.id,
           action: 'auth.forgot_password',
-          ipAddress: request.headers.get('x-forwarded-for'),
+          ipAddress: getClientIp(request.headers),
           userAgent: request.headers.get('user-agent'),
         },
       }),
@@ -82,6 +84,12 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       data: process.env.NODE_ENV === 'production' ? undefined : { resetToken, expires },
     });
   } catch (error) {
+    const tooLarge = payloadTooLargeResponse(error);
+
+    if (tooLarge) {
+      return tooLarge;
+    }
+
     logger.error('Forgot password request failed', {
       error: error instanceof Error ? error.message : 'unknown error',
     });

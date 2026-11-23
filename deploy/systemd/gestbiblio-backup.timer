@@ -1,0 +1,11 @@
+# Tous les jours à 02:30, heure creuse : les comptages pris juste avant le dump
+# doivent correspondre au dump (contrôle de restore-db.sh).
+[Unit]
+Description=Gest Biblio - sauvegarde de la base (quotidienne)
+
+[Timer]
+OnCalendar=*-*-* 02:30:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target

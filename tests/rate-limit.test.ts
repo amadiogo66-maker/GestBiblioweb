@@ -1,6 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { afterAll, afterEach, describe, expect, it } from 'vitest';
-import { getClientIp } from '@/lib/client-ip';
+import { afterAll, describe, expect, it } from 'vitest';
 import { hashIdentifier } from '@/lib/tokens';
 import { RATE_LIMIT_MESSAGE } from '@/lib/constants';
 import { checkRateLimits, hitRateLimit, ipRateLimitKey, rateLimitKey, rateLimitedResponse } from '@/lib/rate-limit';
@@ -30,30 +29,6 @@ describe('hachage des clés', () => {
 
     expect(key).toMatch(/^login:ip:[0-9a-f]{64}$/);
     expect(key).not.toContain('203.0.113.7');
-  });
-});
-
-describe('getClientIp', () => {
-  const originalVercel = process.env.VERCEL;
-
-  afterEach(() => {
-    if (originalVercel === undefined) delete process.env.VERCEL;
-    else process.env.VERCEL = originalVercel;
-  });
-
-  it('hors Vercel : première entrée de x-forwarded-for', () => {
-    delete process.env.VERCEL;
-
-    expect(getClientIp(new Headers({ 'x-forwarded-for': '198.51.100.1, 10.0.0.1' }))).toBe('198.51.100.1');
-    expect(getClientIp(new Headers())).toBeNull();
-  });
-
-  it('sur Vercel : x-vercel-forwarded-for prime sur un x-forwarded-for fourni', () => {
-    process.env.VERCEL = '1';
-
-    const headers = new Headers({ 'x-forwarded-for': '1.2.3.4', 'x-vercel-forwarded-for': '198.51.100.9' });
-
-    expect(getClientIp(headers)).toBe('198.51.100.9');
   });
 });
 

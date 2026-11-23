@@ -63,6 +63,15 @@ export const NOTIFICATIONS_PAGE_SIZE = 20;
 export const MFA_REQUIRED_CODE = 'mfa_required';
 export const CROSS_ORIGIN_MESSAGE = 'Origine de la requête non autorisée';
 
+// Plafonds des corps de requête, comptés en octets réellement lus (lib/json-body.ts).
+export const BODY_LIMITS = {
+  // Webhooks du logiciel de gestion : /api/*/sync et /api/events/ack.
+  sync: 2 * 1024 * 1024,
+  // Toutes les autres routes (formulaires, connexion).
+  default: 64 * 1024,
+} as const;
+export const PAYLOAD_TOO_LARGE_MESSAGE = 'Requête trop volumineuse';
+
 // --- Espace du personnel --------------------------------------------------------
 export const STAFF_ACCOUNTS_PAGE_SIZE = 20;
 export const STAFF_AUDIT_PAGE_SIZE = 30;

@@ -4,6 +4,7 @@ import { rejectCrossOrigin, requireActiveUser } from '@/lib/authz';
 import { prisma } from '@/lib/prisma';
 import { logger } from '@/lib/logger';
 import { notificationSelect } from '@/lib/notifications';
+import { getClientIp } from '@/lib/client-ip';
 
 export const runtime = 'nodejs';
 
@@ -58,7 +59,7 @@ export async function PATCH(request: NextRequest, context: ReadNotificationRoute
         data: {
           userId: user.id,
           action: 'notification.read',
-          ipAddress: request.headers.get('x-forwarded-for'),
+          ipAddress: getClientIp(request.headers),
           userAgent: request.headers.get('user-agent'),
           details: { notificationId: updatedNotification.id },
         },

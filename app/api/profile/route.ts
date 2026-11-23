@@ -5,6 +5,9 @@ import { rejectCrossOrigin, requireActiveUser } from '@/lib/authz';
 import { prisma } from '@/lib/prisma';
 import { logger } from '@/lib/logger';
 import { updateProfileSchema } from '@/schemas/user';
+import { BODY_LIMITS } from '@/lib/constants';
+import { payloadTooLargeResponse, readJsonBody } from '@/lib/json-body';
+import { getClientIp } from '@/lib/client-ip';
 
 export const runtime = 'nodejs';
 
@@ -87,7 +90,7 @@ export async function PATCH(request: NextRequest): Promise<NextResponse> {
 
     const { user } = authz;
 
-    const payload = await request.json();
+    const payload = await readJsonBody(request, BODY_LIMITS.default);
     const parsed = updateProfileSchema.safeParse(payload);
 
     if (!parsed.success) {
@@ -120,7 +123,7 @@ export async function PATCH(request: NextRequest): Promise<NextResponse> {
       data: {
         userId: user.id,
         action: 'profile.update',
-        ipAddress: request.headers.get('x-forwarded-for'),
+        ipAddress: getClientIp(request.headers),
         userAgent: request.headers.get('user-agent'),
         details: { userId: updatedUser.id },
       },
@@ -132,6 +135,12 @@ export async function PATCH(request: NextRequest): Promise<NextResponse> {
       data: updatedUser,
     });
   } catch (error) {
+    const tooLarge = payloadTooLargeResponse(error);
+
+    if (tooLarge) {
+      return tooLarge;
+    }
+
     logger.error('Profile update failed', { error: error instanceof Error ? error.message : 'unknown error' });
     return jsonResponse({ success: false, message: 'Impossible de modifier le profil' }, 500);
   }

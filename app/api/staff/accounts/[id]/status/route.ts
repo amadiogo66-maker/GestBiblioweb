@@ -7,8 +7,9 @@ import { enforceRateLimits, rateLimitKey } from '@/lib/rate-limit';
 import { buildActivityLogData } from '@/lib/activity-log';
 import { evaluateModeration } from '@/lib/staff-moderation';
 import { ACCOUNT_STATUS_LABELS } from '@/lib/staff-labels';
-import { RATE_LIMITS } from '@/lib/constants';
+import { BODY_LIMITS, RATE_LIMITS } from '@/lib/constants';
 import { moderationSchema } from '@/schemas/staff';
+import { payloadTooLargeResponse, readJsonBodyOrNull } from '@/lib/json-body';
 
 export const runtime = 'nodejs';
 
@@ -46,7 +47,7 @@ export async function PATCH(request: NextRequest, context: RouteContext): Promis
   }
 
   try {
-    const parsed = moderationSchema.safeParse(await request.json().catch(() => null));
+    const parsed = moderationSchema.safeParse(await readJsonBodyOrNull(request, BODY_LIMITS.default));
 
     if (!parsed.success) {
       return validationErrorResponse(parsed.error);
@@ -105,6 +106,12 @@ export async function PATCH(request: NextRequest, context: RouteContext): Promis
       data: { id: target.id, status: decision.nextStatus },
     });
   } catch (error) {
+    const tooLarge = payloadTooLargeResponse(error);
+
+    if (tooLarge) {
+      return tooLarge;
+    }
+
     if (error instanceof StatusChangedError) {
       return jsonResponse({ success: false, message: 'Le statut de ce compte vient de changer. Rechargez la page.' }, 409);
     }

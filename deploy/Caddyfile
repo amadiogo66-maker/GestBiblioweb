@@ -1,0 +1,35 @@
+# Reverse proxy HTTPS devant l'application (docker-compose.prod.yml).
+#
+# SITE_ADDRESS (dans .env.production) :
+#   - nom de domaine public, ex. biblio.univ-labe.edu.gn : certificat Let's Encrypt
+#     automatique (ports 80 et 443 joignables depuis Internet, DNS pointant ici) ;
+#   - nom ou adresse du réseau local, ex. biblio.ul.local ou 192.168.1.20 : mettre
+#     CADDY_TLS="tls internal" (certificat émis par l'autorité locale de Caddy, à
+#     faire approuver par les postes et par le logiciel de gestion).
+#
+# CADDY_TLS : vide (certificat public) ou "tls internal".
+
+{$SITE_ADDRESS} {
+	{$CADDY_TLS}
+
+	encode zstd gzip
+
+	# Plafond de défense en profondeur ; l'application applique 2 Mo / 64 Ko.
+	request_body {
+		max_size 3MB
+	}
+
+	reverse_proxy app:3000 {
+		# L'adresse du client est ÉCRASÉE (jamais ajoutée à celle envoyée par le
+		# client) : l'application lit la dernière valeur de X-Forwarded-For
+		# (CLIENT_IP_HEADER vide = x-forwarded-for).
+		header_up X-Forwarded-For {remote_host}
+		header_up X-Forwarded-Host {host}
+		header_up X-Forwarded-Proto {scheme}
+	}
+
+	log {
+		output stdout
+		format console
+	}
+}
