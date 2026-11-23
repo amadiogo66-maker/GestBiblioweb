@@ -2,11 +2,29 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { join, relative, sep } from 'node:path';
 import ts from 'typescript';
 
-/** Dossiers de pages protégées, relatifs à la racine du projet. */
-const PROTECTED_ROOTS: Array<{ directory: string; guard: string }> = [
+/**
+ * Dossiers de pages protégées, relatifs à la racine du projet. Une page reçoit
+ * le garde du dossier le PLUS PRÉCIS qui la contient (espace enseignant,
+ * espace département), sinon celui de son groupe.
+ */
+export const PROTECTED_ROOTS: Array<{ directory: string; guard: string }> = [
   { directory: 'app/(dashboard)', guard: 'requireActiveDashboardUser' },
+  { directory: 'app/(dashboard)/enseignant', guard: 'requireTeacherPage' },
   { directory: 'app/(staff)', guard: 'requireStaffPage' },
+  { directory: 'app/(staff)/personnel/(protected)/departement', guard: 'requireDepartmentManagerPage' },
 ];
+
+/** Les deux groupes parcourus ; les sous-dossiers ne font que préciser le garde. */
+const GROUP_ROOTS = ['app/(dashboard)', 'app/(staff)'];
+
+/** Garde attendu pour une page (chemin relatif en /), dossier le plus précis d'abord. */
+export function expectedGuard(name: string): string {
+  if (PAGE_GUARD_EXCEPTIONS[name]) return PAGE_GUARD_EXCEPTIONS[name];
+
+  const root = PROTECTED_ROOTS.filter(({ directory }) => name.startsWith(`${directory}/`)).sort((a, b) => b.directory.length - a.directory.length)[0];
+
+  return root?.guard ?? '';
+}
 
 /**
  * Exceptions, volontairement courtes : pages qui ont un autre garde.
@@ -72,18 +90,13 @@ export function checkPageSource(fileName: string, content: string, guard: string
 
 /** Parcourt les pages protégées sous `root` et renvoie la liste des violations. */
 export function findPageGuardViolations(root: string): string[] {
-  return PROTECTED_ROOTS.flatMap(({ directory, guard }) =>
-    findPages(join(root, directory)).flatMap((path) => {
-      const name = relative(root, path).split(sep).join('/');
-      const problem = checkPageSource(name, readFileSync(path, 'utf8'), PAGE_GUARD_EXCEPTIONS[name] ?? guard);
+  return listProtectedPages(root).flatMap((name) => {
+    const problem = checkPageSource(name, readFileSync(join(root, name), 'utf8'), expectedGuard(name));
 
-      return problem ? [problem] : [];
-    })
-  );
+    return problem ? [problem] : [];
+  });
 }
 
 export function listProtectedPages(root: string): string[] {
-  return PROTECTED_ROOTS.flatMap(({ directory }) =>
-    findPages(join(root, directory)).map((path) => relative(root, path).split(sep).join('/'))
-  );
+  return GROUP_ROOTS.flatMap((directory) => findPages(join(root, directory)).map((path) => relative(root, path).split(sep).join('/')));
 }

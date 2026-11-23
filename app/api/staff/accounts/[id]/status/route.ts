@@ -32,7 +32,8 @@ export async function PATCH(request: NextRequest, context: RouteContext): Promis
     return crossOrigin;
   }
 
-  const staff = await requireStaff();
+  // Comptes du site : personnel de la bibliothèque seulement (pas les responsables de département).
+  const staff = await requireStaff('ADMIN', 'LIBRARIAN');
 
   if (!staff.ok) {
     return staff.response;

@@ -1,5 +1,6 @@
 import { AlertTriangle, Ban, Clock, GraduationCap, PauseCircle, UserCheck, UserRound, Users } from 'lucide-react';
 import type { ReactElement } from 'react';
+import { redirect } from 'next/navigation';
 import { StatCard } from '@/components/dashboard/StatCard';
 import { AccountsTable } from '@/components/staff/AccountsTable';
 import { AuditTable } from '@/components/staff/AuditTable';
@@ -22,7 +23,13 @@ function Section({ title, description, children }: { title: string; description?
 }
 
 export default async function StaffDashboardPage(): Promise<ReactElement> {
-  await requireStaffPage();
+  const context = await requireStaffPage();
+
+  // Responsable de département seul : son espace, pas les comptes du site.
+  if (!context.isLibraryStaff) {
+    redirect('/personnel/departement');
+  }
+
   const data = await getStaffDashboardData();
   const count = (record: Record<string, number>, key: string): number => record[key] ?? 0;
 

@@ -24,6 +24,10 @@ const DETAIL_LABELS: Record<string, string> = {
   externalId: 'Référence livre',
   method: 'Méthode',
   stage: 'Étape',
+  from: 'Étape avant',
+  to: 'Étape après',
+  substitute: 'Décision à la place du responsable',
+  note: 'Note',
 };
 
 const ACTION_LABELS: Record<string, string> = {
@@ -43,6 +47,22 @@ const ACTION_LABELS: Record<string, string> = {
   'auth.mfa.recovery_used': 'Code de secours utilisé',
   'auth.mfa.recovery_regenerated': 'Codes de secours régénérés',
   'auth.mfa.reset': 'Double authentification réinitialisée',
+  'reading_list.create': 'Liste de lectures créée',
+  'reading_list.update': 'Liste de lectures modifiée',
+  'reading_list.publish': 'Liste de lectures publiée',
+  'reading_list.unpublish': 'Liste de lectures dépubliée',
+  'reading_list.delete': 'Liste de lectures supprimée',
+  'reading_list.item_add': 'Ouvrage ajouté à une liste',
+  'reading_list.item_update': 'Ouvrage d’une liste modifié',
+  'reading_list.item_remove': 'Ouvrage retiré d’une liste',
+  'reading_list.moderation_unpublish': 'Liste dépubliée par la bibliothèque',
+  'acquisition.submit': 'Proposition d’acquisition déposée',
+  'acquisition.withdraw': 'Proposition d’acquisition retirée',
+  'acquisition.dept_approved': 'Proposition validée par le département',
+  'acquisition.dept_rejected': 'Proposition refusée par le département',
+  'acquisition.library_accepted': 'Proposition acceptée par la bibliothèque',
+  'acquisition.library_rejected': 'Proposition refusée par la bibliothèque',
+  'acquisition.acquired': 'Ouvrage acquis',
 };
 
 const CLI_ACTIONS = new Set(['staff.grant', 'staff.revoke']);

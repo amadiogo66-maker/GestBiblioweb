@@ -4,7 +4,7 @@ import { BLOCKED_ACCOUNT_ROUTE, UNAUTHENTICATED_MESSAGE } from '@/lib/constants'
 
 // '/personnel' : session requise ici ; l'autorisation (affectation du personnel)
 // est décidée par le layout de l'espace en relisant la base, jamais par le JWT.
-const protectedRoutes = ['/tableau-de-bord', '/emprunts', '/reservations', '/profil', '/carte-bibliotheque', '/notifications', '/personnel'];
+const protectedRoutes = ['/tableau-de-bord', '/emprunts', '/reservations', '/profil', '/carte-bibliotheque', '/notifications', '/personnel', '/enseignant', '/listes-de-lecture'];
 const authPages = ['/connexion', '/inscription', '/mot-de-passe-oublie', '/reinitialiser-mot-de-passe'];
 const pendingRoute = '/en-attente-validation';
 

@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { PAGE_GUARD_EXCEPTIONS, checkPageSource, findPageGuardViolations, listProtectedPages } from './helpers/page-guards';
+import { PAGE_GUARD_EXCEPTIONS, checkPageSource, expectedGuard, findPageGuardViolations, listProtectedPages } from './helpers/page-guards';
 
 const GUARD = 'requireActiveDashboardUser';
 const page = (body: string) => `export default async function Page() {\n${body}\nreturn null;\n}\n`;
@@ -26,10 +26,29 @@ describe('garde des pages protégées (projet réel)', () => {
       'app/(staff)/personnel/(protected)/comptes/[id]/page.tsx',
       'app/(staff)/personnel/(protected)/journal/page.tsx',
       'app/(staff)/personnel/securite/page.tsx',
+      'app/(dashboard)/listes-de-lecture/page.tsx',
+      'app/(dashboard)/listes-de-lecture/[id]/page.tsx',
+      'app/(dashboard)/enseignant/listes/page.tsx',
+      'app/(dashboard)/enseignant/listes/nouvelle/page.tsx',
+      'app/(dashboard)/enseignant/listes/[id]/page.tsx',
+      'app/(dashboard)/enseignant/propositions/page.tsx',
+      'app/(staff)/personnel/(protected)/departement/page.tsx',
+      'app/(staff)/personnel/(protected)/departement/propositions/page.tsx',
+      'app/(staff)/personnel/(protected)/departement/listes/page.tsx',
+      'app/(staff)/personnel/(protected)/acquisitions/page.tsx',
     ]) {
       expect(pages).toContain(expected);
     }
-    expect(pages).toHaveLength(12);
+    expect(pages).toHaveLength(22);
+  });
+
+  it('garde attendu : le dossier le plus précis l’emporte', () => {
+    expect(expectedGuard('app/(dashboard)/listes-de-lecture/page.tsx')).toBe('requireActiveDashboardUser');
+    expect(expectedGuard('app/(dashboard)/enseignant/listes/[id]/page.tsx')).toBe('requireTeacherPage');
+    expect(expectedGuard('app/(dashboard)/enseignant/propositions/page.tsx')).toBe('requireTeacherPage');
+    expect(expectedGuard('app/(staff)/personnel/(protected)/acquisitions/page.tsx')).toBe('requireStaffPage');
+    expect(expectedGuard('app/(staff)/personnel/(protected)/departement/listes/page.tsx')).toBe('requireDepartmentManagerPage');
+    expect(expectedGuard('app/(staff)/personnel/securite/page.tsx')).toBe('requireStaffPageIdentity');
   });
 
   it('la liste d’exceptions est courte et ne contient aucune page disparue', () => {
@@ -72,6 +91,27 @@ describe('le contrôle détecte un oubli', () => {
     const root = fakeProject({ 'app/(staff)/personnel/factice/page.tsx': page(`const rows = await listStaffAccounts();`) });
 
     expect(findPageGuardViolations(root)).toHaveLength(1);
+  });
+
+  it('page enseignant factice avec le seul garde du tableau de bord : violation (rôle non vérifié)', () => {
+    const root = fakeProject({
+      'app/(dashboard)/enseignant/factice/page.tsx': page(`const user = await ${GUARD}();`),
+      'app/(dashboard)/enseignant/correcte/page.tsx': page('const user = await requireTeacherPage();'),
+    });
+    const violations = findPageGuardViolations(root);
+
+    expect(violations).toHaveLength(1);
+    expect(violations[0]).toContain('enseignant/factice');
+    expect(violations[0]).toContain('requireTeacherPage');
+  });
+
+  it('page département factice avec le garde générique du personnel : violation (périmètre non vérifié)', () => {
+    const root = fakeProject({
+      'app/(staff)/personnel/(protected)/departement/factice/page.tsx': page('await requireStaffPage();'),
+      'app/(staff)/personnel/(protected)/departement/sans-garde/page.tsx': page('const rows = await prisma.acquisitionRequest.findMany();'),
+    });
+
+    expect(findPageGuardViolations(root)).toHaveLength(2);
   });
 
   it('une page MFA non déclarée ne bénéficie pas de l’exception', () => {

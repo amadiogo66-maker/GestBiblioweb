@@ -1,4 +1,5 @@
 import type { AccountStatusValue, ModerationAction, StaffRoleValue } from '@/lib/staff-labels';
+import { isLibraryStaff } from '@/lib/department-access';
 
 /**
  * Règles de modération des comptes, en fonction pure (testable sans base).
@@ -44,7 +45,8 @@ export function evaluateModeration(
 ): ModerationDecision {
   const isAdmin = actor.roles.includes('ADMIN');
 
-  if (actor.roles.length === 0) {
+  // Un responsable de département n'est pas modérateur des comptes.
+  if (!isLibraryStaff(actor.roles)) {
     return deny(403, 'Accès refusé.');
   }
   if (target.id === actor.id) {

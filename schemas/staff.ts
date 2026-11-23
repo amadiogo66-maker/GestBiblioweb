@@ -46,3 +46,9 @@ export function flattenSearchParams(params: Record<string, string | string[] | u
       .filter((entry): entry is readonly [string, string] => typeof entry[1] === 'string')
   );
 }
+
+/** Espace département : ?departement=<slug> (contrôlé ensuite par canAccessDepartment) et page. */
+export const departmentPageQuerySchema = z.object({
+  departement: z.string().trim().max(80).regex(/^[a-z0-9-]*$/).optional().catch(undefined),
+  page,
+});

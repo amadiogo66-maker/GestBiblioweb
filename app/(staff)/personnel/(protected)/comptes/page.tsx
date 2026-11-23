@@ -19,7 +19,7 @@ const FIELD_CLASS =
   'w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20';
 
 export default async function StaffAccountsPage({ searchParams }: AccountsPageProps): Promise<ReactElement> {
-  await requireStaffPage();
+  await requireStaffPage('ADMIN', 'LIBRARIAN');
   const query = staffAccountsQuerySchema.parse(flattenSearchParams(await searchParams));
   const [{ accounts, total, totalPages }, departments] = await Promise.all([listStaffAccounts(query), getDepartmentOptions()]);
   const filters = { q: query.q, status: query.status, role: query.role, departmentId: query.departmentId };

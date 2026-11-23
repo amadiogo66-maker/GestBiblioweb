@@ -40,7 +40,7 @@ function Card({ title, children }: { title: string; children: ReactNode }): Reac
 }
 
 export default async function StaffAccountDetailPage({ params }: AccountDetailPageProps): Promise<ReactElement> {
-  const context = await requireStaffPage();
+  const context = await requireStaffPage('ADMIN', 'LIBRARIAN');
   const { id } = await params;
   const account = await getStaffAccount(id);
 

@@ -14,6 +14,7 @@ import { SimilarBooks } from '@/components/ouvrage/SimilarBooks';
 import { EmptyState } from '@/components/ouvrage/EmptyState';
 import { CirculationNotice } from '@/components/shared/CirculationNotice';
 import { isCirculationReachable } from '@/lib/circulation-status';
+import { publishedListsForBook } from '@/lib/reading-lists';
 
 export const dynamic = 'force-dynamic';
 
@@ -35,9 +36,11 @@ export default async function OuvragePage({ params }: OuvragePageProps): Promise
 
   let loanDueDate: Date | null = null;
   let reservationStatus: ReservationStatus | null = null;
+  // Listes de lectures : réservées aux membres connectés actifs, PUBLIÉES seulement.
+  let readingLists: Awaited<ReturnType<typeof publishedListsForBook>> = [];
 
   if (viewerId) {
-    const [loan, reservation] = await Promise.all([
+    const [loan, reservation, lists] = await Promise.all([
       prisma.loan.findFirst({
         where: { userId: viewerId, bookId: book.id, status: LoanStatus.ACTIVE },
         select: { dueDate: true },
@@ -50,10 +53,12 @@ export default async function OuvragePage({ params }: OuvragePageProps): Promise
         },
         select: { status: true },
       }),
+      publishedListsForBook(book.id),
     ]);
 
     loanDueDate = loan?.dueDate ?? null;
     reservationStatus = reservation?.status ?? null;
+    readingLists = lists;
   }
 
   const reachable = await isCirculationReachable();
@@ -94,6 +99,24 @@ export default async function OuvragePage({ params }: OuvragePageProps): Promise
           </div>
           <BookMetadata book={book} />
         </div>
+
+        {readingLists.length > 0 ? (
+          <section aria-labelledby="reading-lists-title" className="flex flex-col gap-3">
+            <h2 id="reading-lists-title" className="font-serif text-xl font-semibold text-primary">
+              Dans les listes de lectures
+            </h2>
+            <ul className="flex flex-col gap-2">
+              {readingLists.map((list) => (
+                <li key={list.id}>
+                  <Link href={`/listes-de-lecture/${list.id}`} className="text-sm font-medium text-primary hover:underline">
+                    {list.title}
+                  </Link>
+                  <span className="text-sm text-slate-500"> · {[list.courseCode, list.department.name].filter(Boolean).join(' · ')}</span>
+                </li>
+              ))}
+            </ul>
+          </section>
+        ) : null}
       </Container>
 
       <SimilarBooks books={similarBooks} />

@@ -1,5 +1,6 @@
 import { cache } from 'react';
 import { redirect } from 'next/navigation';
+import type { UserRole } from '@prisma/client';
 import { auth } from '@/lib/auth';
 import { BLOCKED_ACCOUNT_ROUTE } from '@/lib/constants';
 import { prisma } from '@/lib/prisma';
@@ -9,6 +10,9 @@ export interface DashboardUser {
   firstName: string;
   /** Une affectation du personnel active existe (relu en base, jamais depuis le JWT). */
   hasStaffAccess: boolean;
+  /** Rôle et département officiel, relus en base (jamais depuis le JWT). */
+  role: UserRole;
+  departmentId: string | null;
 }
 
 /**
@@ -24,7 +28,12 @@ const loadSessionAccount = cache(async () => {
 
   const account = await prisma.user.findUnique({
     where: { id: session.user.id },
-    select: { status: true, staffAssignments: { where: { revokedAt: null }, select: { id: true }, take: 1 } },
+    select: {
+      status: true,
+      role: true,
+      departmentId: true,
+      staffAssignments: { where: { revokedAt: null }, select: { id: true }, take: 1 },
+    },
   });
 
   return {
@@ -32,6 +41,8 @@ const loadSessionAccount = cache(async () => {
     firstName: session.user.firstName,
     status: account?.status ?? null,
     hasStaffAccess: (account?.staffAssignments.length ?? 0) > 0,
+    role: account?.role ?? 'STUDENT',
+    departmentId: account?.departmentId ?? null,
   };
 });
 
@@ -54,7 +65,13 @@ export async function requireActiveDashboardUser(): Promise<DashboardUser> {
     redirect(account.status === 'PENDING' ? '/en-attente-validation' : BLOCKED_ACCOUNT_ROUTE);
   }
 
-  return { id: account.id, firstName: account.firstName, hasStaffAccess: account.hasStaffAccess };
+  return {
+    id: account.id,
+    firstName: account.firstName,
+    hasStaffAccess: account.hasStaffAccess,
+    role: account.role,
+    departmentId: account.departmentId,
+  };
 }
 
 /**

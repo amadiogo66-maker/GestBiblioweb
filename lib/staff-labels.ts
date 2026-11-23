@@ -5,7 +5,10 @@
 
 export type AccountStatusValue = 'PENDING' | 'ACTIVE' | 'SUSPENDED' | 'BANNED';
 export type UserRoleValue = 'STUDENT' | 'TEACHER' | 'VISITOR';
-export type StaffRoleValue = 'ADMIN' | 'LIBRARIAN';
+export type StaffRoleValue = 'ADMIN' | 'LIBRARIAN' | 'DEPARTMENT_MANAGER';
+
+/** Personnel de la bibliothèque : comptes, modération, acquisitions, tous les départements. */
+export const LIBRARY_STAFF_ROLES = ['ADMIN', 'LIBRARIAN'] as const satisfies readonly StaffRoleValue[];
 export type ModerationAction = 'suspend' | 'ban' | 'reactivate';
 
 export const ACCOUNT_STATUS_LABELS: Record<AccountStatusValue, string> = {
@@ -31,6 +34,7 @@ export const USER_ROLE_LABELS: Record<UserRoleValue, string> = {
 export const STAFF_ROLE_LABELS: Record<StaffRoleValue, string> = {
   ADMIN: 'Administrateur',
   LIBRARIAN: 'Bibliothécaire',
+  DEPARTMENT_MANAGER: 'Responsable de département',
 };
 
 export const MODERATION_ACTION_LABELS: Record<ModerationAction, string> = {

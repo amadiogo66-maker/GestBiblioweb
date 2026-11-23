@@ -85,4 +85,35 @@ export const notificationTexts = {
       message: `Votre emprunt de "${bookTitle}" est à rendre au plus tard le ${formatNotificationDate(dueDate)}.`,
     };
   },
+  /** Suivi d'une proposition d'acquisition : titre de l'ouvrage seulement, aucune donnée personnelle. */
+  acquisitionUpdate(status: 'DEPT_APPROVED' | 'DEPT_REJECTED' | 'LIBRARY_ACCEPTED' | 'LIBRARY_REJECTED' | 'ACQUIRED', bookTitle: string): NotificationText {
+    switch (status) {
+      case 'DEPT_APPROVED':
+        return {
+          type: 'GENERAL',
+          title: 'Proposition validée',
+          message: `Votre proposition d'acquisition de "${bookTitle}" a été validée par votre département et transmise à la bibliothèque.`,
+        };
+      case 'DEPT_REJECTED':
+        return {
+          type: 'GENERAL',
+          title: 'Proposition non retenue',
+          message: `Votre proposition d'acquisition de "${bookTitle}" n'a pas été retenue par votre département. Le motif figure dans vos propositions.`,
+        };
+      case 'LIBRARY_ACCEPTED':
+        return { type: 'GENERAL', title: 'Proposition acceptée', message: `La bibliothèque a accepté d'acquérir "${bookTitle}".` };
+      case 'LIBRARY_REJECTED':
+        return {
+          type: 'GENERAL',
+          title: 'Proposition refusée',
+          message: `La bibliothèque n'a pas retenu l'acquisition de "${bookTitle}". Le motif figure dans vos propositions.`,
+        };
+      case 'ACQUIRED':
+        return {
+          type: 'NEW_ACQUISITION',
+          title: 'Ouvrage acquis',
+          message: `"${bookTitle}" a été acquis par la bibliothèque et sera bientôt disponible au catalogue.`,
+        };
+    }
+  },
 };

@@ -25,6 +25,7 @@
     "db:seed-structure": "tsx scripts/seed-structure.ts",
     "db:backfill-departments": "tsx scripts/backfill-departments.ts",
     "db:seed-demo-loans": "tsx scripts/seed-demo-loans.ts",
+    "db:seed-demo-reading-lists": "tsx scripts/seed-demo-reading-lists.ts",
     "events:purge": "tsx scripts/events-purge.ts",
     "notifications:generate": "tsx scripts/notifications-generate.ts",
     "simulate:library": "tsx scripts/simulate-library-software.ts",

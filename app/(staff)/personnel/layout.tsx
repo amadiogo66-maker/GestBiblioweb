@@ -32,7 +32,7 @@ export default async function StaffLayout({ children }: { children: ReactNode })
   return (
     <div className="min-h-screen bg-accent">
       <StaffHeader fullName={`${context.user.firstName} ${context.user.lastName}`} roles={context.staffRoles} />
-      <StaffNav isAdmin={context.isAdmin} verified={context.mfaState === 'verified'} />
+      <StaffNav isAdmin={context.isAdmin} isLibraryStaff={context.isLibraryStaff} verified={context.mfaState === 'verified'} />
       <main className="py-8">
         <Container className="flex flex-col gap-8">{children}</Container>
       </main>

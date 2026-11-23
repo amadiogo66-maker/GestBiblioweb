@@ -53,6 +53,12 @@ export const RATE_LIMITS = {
   // Double authentification : seuls les ÉCHECS sont comptés.
   mfaFailuresUser: { limit: 5, windowMs: 15 * MINUTE_MS },
   mfaFailuresIp: { limit: 20, windowMs: 15 * MINUTE_MS },
+  // Espace enseignant : écritures sur les listes de lectures (par enseignant).
+  teacherReadingListWrite: { limit: 120, windowMs: 15 * MINUTE_MS },
+  // Nouvelles propositions d'acquisition (par enseignant).
+  acquisitionCreate: { limit: 10, windowMs: 60 * MINUTE_MS },
+  // Décisions sur les propositions et modération des listes (par membre du personnel).
+  staffAcquisitionDecision: { limit: 60, windowMs: 15 * MINUTE_MS },
 } as const satisfies Record<string, RateLimitRule>;
 
 /** Au-delà de ce délai sans contact, le logiciel de gestion est considéré injoignable. */
@@ -85,3 +91,25 @@ export const RATE_LIMIT_RETENTION_MS = 24 * 60 * MINUTE_MS;
 // --- Routes ---------------------------------------------------------------------
 /** Page publique affichée à un compte suspendu, banni ou supprimé encore en session. */
 export const BLOCKED_ACCOUNT_ROUTE = '/compte-bloque';
+
+// --- Listes de lectures et propositions d'acquisition -----------------------------
+export const TEACHER_ONLY_MESSAGE = 'Espace réservé aux enseignants';
+export const TEACHER_NO_DEPARTMENT_MESSAGE =
+  'Votre compte n’est rattaché à aucun département. Contactez la bibliothèque pour le faire rattacher.';
+export const READING_LIST_QUOTAS = { listsPerTeacher: 30, itemsPerList: 100 } as const;
+export const ACQUISITION_OPEN_QUOTA = 10;
+/** Réponse 409 d'une proposition qui ressemble à un doublon : l'enseignant doit confirmer. */
+export const DUPLICATE_WARNING_CODE = 'duplicate_warning';
+/** Propositions « ouvertes » : pas encore refusées ni acquises (quota, doublons). */
+export const OPEN_ACQUISITION_STATUSES = ['SUBMITTED', 'DEPT_APPROVED', 'LIBRARY_ACCEPTED'] as const;
+export const READING_LISTS_PAGE_SIZE = 20;
+export const ACQUISITIONS_PAGE_SIZE = 20;
+
+/**
+ * Affichage du nom de l'enseignant sur les listes publiées, lues par les membres.
+ * Désactivé par défaut : activer seulement avec l'accord des enseignants
+ * (variable READING_LISTS_SHOW_TEACHER_NAME=true, voir .env.example).
+ */
+export function showReadingListTeacherName(): boolean {
+  return process.env.READING_LISTS_SHOW_TEACHER_NAME === 'true';
+}

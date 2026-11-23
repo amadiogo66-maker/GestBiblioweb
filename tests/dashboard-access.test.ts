@@ -63,7 +63,14 @@ describe('requireActiveDashboardUser', () => {
   it('compte actif : identité renvoyée', async () => {
     as(ids.ACTIVE);
 
-    await expect(requireActiveDashboardUser()).resolves.toEqual({ id: ids.ACTIVE, firstName: 'JwtPrenom', hasStaffAccess: false });
+    // Rôle et département relus en base (le JWT n'en dit rien ici).
+    await expect(requireActiveDashboardUser()).resolves.toEqual({
+      id: ids.ACTIVE,
+      firstName: 'JwtPrenom',
+      hasStaffAccess: false,
+      role: 'STUDENT',
+      departmentId: null,
+    });
   });
 
   it('sans session : /connexion', async () => {

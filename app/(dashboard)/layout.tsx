@@ -17,7 +17,7 @@ export default async function DashboardLayout({ children }: DashboardLayoutProps
   return (
     <div className="min-h-screen bg-accent">
       <DashboardHeader firstName={user.firstName} showStaffLink={user.hasStaffAccess} />
-      <DashboardNav />
+      <DashboardNav showTeacherLink={user.role === 'TEACHER'} />
       <main className="py-10">
         <Container className="flex flex-col gap-8">{children}</Container>
       </main>

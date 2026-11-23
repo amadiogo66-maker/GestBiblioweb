@@ -6,13 +6,16 @@ import { jsonResponse } from '@/lib/api';
 import { isSameOriginRequest } from '@/lib/origin';
 import { publicUserSelect, type PublicUser } from '@/lib/user-select';
 import { getStaffMfaState } from '@/lib/staff-mfa-session';
-import { CROSS_ORIGIN_MESSAGE, FORBIDDEN_MESSAGE, MFA_REQUIRED_CODE, UNAUTHENTICATED_MESSAGE } from '@/lib/constants';
+import { departmentActorFrom, type DepartmentActor, type ScopedAssignment } from '@/lib/department-access';
+import { CROSS_ORIGIN_MESSAGE, FORBIDDEN_MESSAGE, MFA_REQUIRED_CODE, TEACHER_ONLY_MESSAGE, UNAUTHENTICATED_MESSAGE } from '@/lib/constants';
 import type { ApiResponse } from '@/types';
 
 type Denied = { ok: false; response: NextResponse<ApiResponse<never>> };
 
 export type ActiveUserResult = { ok: true; user: PublicUser } | Denied;
-export type StaffResult = { ok: true; user: PublicUser; staffRoles: StaffRole[] } | Denied;
+export type StaffResult = { ok: true; user: PublicUser; staffRoles: StaffRole[]; assignments: ScopedAssignment[] } | Denied;
+export type DepartmentManagerResult = { ok: true; user: PublicUser; staffRoles: StaffRole[]; actor: DepartmentActor } | Denied;
+export type TeacherResult = { ok: true; user: PublicUser } | Denied;
 
 function deny(status: 401 | 403, message: string, code?: string): Denied {
   return { ok: false, response: jsonResponse({ success: false, message, ...(code ? { code } : {}) }, status) };
@@ -66,14 +69,14 @@ export async function requireStaffIdentity(...roles: StaffRole[]): Promise<Staff
       revokedAt: null,
       ...(roles.length > 0 ? { role: { in: roles } } : {}),
     },
-    select: { role: true },
+    select: { role: true, departmentId: true },
   });
 
   if (assignments.length === 0) {
     return deny(403, FORBIDDEN_MESSAGE);
   }
 
-  return { ok: true, user: active.user, staffRoles: assignments.map((assignment) => assignment.role) };
+  return { ok: true, user: active.user, staffRoles: [...new Set(assignments.map((assignment) => assignment.role))], assignments };
 }
 
 /**
@@ -94,4 +97,35 @@ export async function requireStaff(...roles: StaffRole[]): Promise<StaffResult> 
   }
 
   return staff;
+}
+
+/**
+ * Personnel pouvant agir sur des départements : responsable (ses départements,
+ * relus en base dans ses affectations actives), ADMIN ou LIBRARIAN (tous).
+ * Double authentification exigée comme pour tout le personnel. Toute décision
+ * sur un département passe ENSUITE par canAccessDepartment(actor, id).
+ */
+export async function requireDepartmentManager(): Promise<DepartmentManagerResult> {
+  const staff = await requireStaff('DEPARTMENT_MANAGER', 'ADMIN', 'LIBRARIAN');
+
+  if (!staff.ok) {
+    return staff;
+  }
+
+  return { ok: true, user: staff.user, staffRoles: staff.staffRoles, actor: departmentActorFrom(staff.user.id, staff.assignments) };
+}
+
+/** Enseignant actif : rôle TEACHER relu en base (jamais depuis le JWT). Sinon 403. */
+export async function requireTeacher(): Promise<TeacherResult> {
+  const active = await requireActiveUser();
+
+  if (!active.ok) {
+    return active;
+  }
+
+  if (active.user.role !== 'TEACHER') {
+    return deny(403, TEACHER_ONLY_MESSAGE);
+  }
+
+  return active;
 }

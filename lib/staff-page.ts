@@ -4,12 +4,17 @@ import type { StaffRole } from '@prisma/client';
 import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { MFA_ROUTES, computeMfaState, readMfaProofCookie, type StaffMfaState } from '@/lib/staff-mfa-session';
+import { departmentActorFrom, isLibraryStaff, type DepartmentActor } from '@/lib/department-access';
 
 export interface StaffPageContext {
   /** Champs strictement nécessaires à l'affichage (jamais password, qrCode…). */
   user: { id: string; firstName: string; lastName: string; email: string };
   staffRoles: StaffRole[];
   isAdmin: boolean;
+  /** ADMIN ou LIBRARIAN : comptes, modération, acquisitions, tous les départements. */
+  isLibraryStaff: boolean;
+  /** Périmètre départemental, relu en base avec les affectations. */
+  departmentActor: DepartmentActor;
   mfaState: StaffMfaState;
   mfaEnabledAt: Date | null;
 }
@@ -38,7 +43,7 @@ export const loadStaffPageContext = cache(async (): Promise<StaffPageContext | n
         lastName: true,
         email: true,
         status: true,
-        staffAssignments: { where: { revokedAt: null }, select: { role: true } },
+        staffAssignments: { where: { revokedAt: null }, select: { role: true, departmentId: true } },
         staffMfa: { select: { enabledAt: true, epoch: true } },
       },
     }),
@@ -49,12 +54,14 @@ export const loadStaffPageContext = cache(async (): Promise<StaffPageContext | n
     return null;
   }
 
-  const staffRoles = user.staffAssignments.map((assignment) => assignment.role);
+  const staffRoles = [...new Set(user.staffAssignments.map((assignment) => assignment.role))];
 
   return {
     user: { id: user.id, firstName: user.firstName, lastName: user.lastName, email: user.email },
     staffRoles,
     isAdmin: staffRoles.includes('ADMIN'),
+    isLibraryStaff: isLibraryStaff(staffRoles),
+    departmentActor: departmentActorFrom(user.id, user.staffAssignments),
     mfaState: computeMfaState(user.id, user.staffMfa, proof),
     mfaEnabledAt: user.staffMfa?.enabledAt ?? null,
   };
@@ -96,4 +103,13 @@ export async function requireStaffPage(...roles: StaffRole[]): Promise<StaffPage
   }
 
   return context;
+}
+
+/**
+ * Garde des pages de l'espace département : responsable (ses départements) ou
+ * ADMIN / LIBRARIAN (tous), double authentification vérifiée. Chaque page
+ * contrôle ENSUITE le département demandé avec canAccessDepartment().
+ */
+export async function requireDepartmentManagerPage(): Promise<StaffPageContext> {
+  return requireStaffPage('DEPARTMENT_MANAGER', 'ADMIN', 'LIBRARIAN');
 }

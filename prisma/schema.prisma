@@ -71,41 +71,61 @@ enum CheckInMethod {
 enum StaffRole {
   ADMIN
   LIBRARIAN
+  /// Responsable d'un département : departmentId obligatoire (contrainte CHECK).
+  DEPARTMENT_MANAGER
+}
+
+enum ReadingListStatus {
+  DRAFT
+  PUBLISHED
+}
+
+enum AcquisitionStatus {
+  SUBMITTED
+  DEPT_APPROVED
+  DEPT_REJECTED
+  LIBRARY_ACCEPTED
+  LIBRARY_REJECTED
+  ACQUIRED
 }
 
 model User {
-  id            String       @id @default(cuid())
-  email         String       @unique
-  username      String       @unique
-  password      String
-  firstName     String
-  lastName      String
-  role          UserRole     @default(STUDENT)
-  status        UserStatus   @default(PENDING)
-  autoSuspendedAt DateTime?
-  photo         String?
-  qrCode        String?
-  libraryCard   String?      @unique
-  department    String?
-  matricule     String?      @unique
-  createdAt     DateTime     @default(now())
-  updatedAt     DateTime     @updatedAt
-  libraryMember LibraryMember? @relation(fields: [matricule], references: [matricule])
-  loans         Loan[]
-  reservations  Reservation[]
-  attendances   Attendance[]
-  notifications Notification[]
-  accounts      Account[]
-  sessions      Session[]
-  staffAssignments        StaffAssignment[] @relation("StaffAssignmentUser")
-  staffAssignmentsGranted StaffAssignment[] @relation("StaffAssignmentGrantedBy")
-  staffMfa                StaffMfa?
-  staffRecoveryCodes      StaffRecoveryCode[]
+  id                          String               @id @default(cuid())
+  email                       String               @unique
+  username                    String               @unique
+  password                    String
+  firstName                   String
+  lastName                    String
+  role                        UserRole             @default(STUDENT)
+  status                      UserStatus           @default(PENDING)
+  autoSuspendedAt             DateTime?
+  photo                       String?
+  qrCode                      String?
+  libraryCard                 String?              @unique
+  department                  String?
+  matricule                   String?              @unique
+  createdAt                   DateTime             @default(now())
+  updatedAt                   DateTime             @updatedAt
+  libraryMember               LibraryMember?       @relation(fields: [matricule], references: [matricule])
+  loans                       Loan[]
+  reservations                Reservation[]
+  attendances                 Attendance[]
+  notifications               Notification[]
+  accounts                    Account[]
+  sessions                    Session[]
+  staffAssignments            StaffAssignment[]    @relation("StaffAssignmentUser")
+  staffAssignmentsGranted     StaffAssignment[]    @relation("StaffAssignmentGrantedBy")
+  staffMfa                    StaffMfa?
+  staffRecoveryCodes          StaffRecoveryCode[]
   /// Rattachement officiel facultatif. La colonne texte `department` reste la source de lecture.
-  departmentId       String?
-  programId          String?
-  officialDepartment Department? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
-  officialProgram    Program?    @relation(fields: [programId], references: [id], onDelete: SetNull)
+  departmentId                String?
+  programId                   String?
+  officialDepartment          Department?          @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  officialProgram             Program?             @relation(fields: [programId], references: [id], onDelete: SetNull)
+  readingLists                ReadingList[]
+  acquisitionRequests         AcquisitionRequest[] @relation("AcquisitionRequester")
+  acquisitionDeptDecisions    AcquisitionRequest[] @relation("AcquisitionDepartmentDecider")
+  acquisitionLibraryDecisions AcquisitionRequest[] @relation("AcquisitionLibraryDecider")
 
   @@index([email])
   @@index([username])
@@ -116,19 +136,19 @@ model User {
 }
 
 model LibraryMember {
-  id                String    @id @default(cuid())
-  matricule         String    @unique
-  nom               String
-  prenom            String
-  dateNaissance     DateTime
-  email             String?
-  role              UserRole  @default(STUDENT)
-  departement       String?
-  inscriptionActive Boolean   @default(true)
-  dateExpiration    DateTime?
-  syncedAt          DateTime  @updatedAt
-  createdAt         DateTime  @default(now())
-  user              User?
+  id                 String      @id @default(cuid())
+  matricule          String      @unique
+  nom                String
+  prenom             String
+  dateNaissance      DateTime
+  email              String?
+  role               UserRole    @default(STUDENT)
+  departement        String?
+  inscriptionActive  Boolean     @default(true)
+  dateExpiration     DateTime?
+  syncedAt           DateTime    @updatedAt
+  createdAt          DateTime    @default(now())
+  user               User?
   /// Rattachement officiel facultatif. La colonne texte `departement` reste la source de lecture.
   departmentId       String?
   programId          String?
@@ -178,30 +198,31 @@ model VerificationToken {
 }
 
 model Book {
-  id              String        @id @default(cuid())
-  externalId      String        @unique
-  title           String
-  author          String
-  isbn            String        @unique
-  publisher       String?
-  summary         String?       @db.Text
-  coverImage      String?
-  year            Int?
-  department      String
-  category        String
-  location        String?
-  totalCopies     Int           @default(1)
-  availableCopies Int           @default(1)
-  status          BookStatus    @default(AVAILABLE)
-  isNew           Boolean       @default(false)
-  loanCount       Int           @default(0)
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
-  loans           Loan[]
-  reservations    Reservation[]
+  id                 String            @id @default(cuid())
+  externalId         String            @unique
+  title              String
+  author             String
+  isbn               String            @unique
+  publisher          String?
+  summary            String?           @db.Text
+  coverImage         String?
+  year               Int?
+  department         String
+  category           String
+  location           String?
+  totalCopies        Int               @default(1)
+  availableCopies    Int               @default(1)
+  status             BookStatus        @default(AVAILABLE)
+  isNew              Boolean           @default(false)
+  loanCount          Int               @default(0)
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+  loans              Loan[]
+  reservations       Reservation[]
+  readingListItems   ReadingListItem[]
   /// Rattachement officiel facultatif. La colonne texte `department` reste la source de lecture.
   departmentId       String?
-  officialDepartment Department? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  officialDepartment Department?       @relation(fields: [departmentId], references: [id], onDelete: SetNull)
 
   @@index([title])
   @@index([author])
@@ -214,25 +235,25 @@ model Book {
 }
 
 model Loan {
-  id            String      @id @default(cuid())
+  id                 String     @id @default(cuid())
   /// Null : prêt d'un membre sans compte web (rattaché à l'inscription via matricule).
-  userId        String?
-  bookId        String
-  borrowDate    DateTime    @default(now())
-  dueDate       DateTime
-  returnDate    DateTime?
-  status        LoanStatus  @default(ACTIVE)
-  renewalCount  Int         @default(0)
-  fineAmount    Decimal?    @db.Decimal(10, 2)
+  userId             String?
+  bookId             String
+  borrowDate         DateTime   @default(now())
+  dueDate            DateTime
+  returnDate         DateTime?
+  status             LoanStatus @default(ACTIVE)
+  renewalCount       Int        @default(0)
+  fineAmount         Decimal?   @db.Decimal(10, 2)
   /// Identifiant du prêt dans le logiciel de gestion, propriétaire des prêts.
-  externalId    String?     @unique
-  matricule     String?
+  externalId         String?    @unique
+  matricule          String?
   /// Demande de renouvellement en attente de traitement par le logiciel.
   renewalRequestedAt DateTime?
   /// Dernier refus de renouvellement décidé par le logiciel (levé si l'échéance change).
   renewalRefusedAt   DateTime?
-  user          User?       @relation(fields: [userId], references: [id], onDelete: Restrict)
-  book          Book        @relation(fields: [bookId], references: [id])
+  user               User?      @relation(fields: [userId], references: [id], onDelete: Restrict)
+  book               Book       @relation(fields: [bookId], references: [id])
 
   @@index([userId])
   @@index([bookId])
@@ -243,15 +264,15 @@ model Loan {
 /// Index unique PARTIEL (userId, bookId) WHERE status IN ('PENDING','READY') :
 /// écrit à la main dans la migration, Prisma ne sait pas le décrire ici.
 model Reservation {
-  id           String             @id @default(cuid())
-  userId       String
-  bookId       String
-  requestDate  DateTime           @default(now())
-  expiryDate   DateTime?
-  status       ReservationStatus  @default(PENDING)
-  notifiedAt   DateTime?
-  user         User               @relation(fields: [userId], references: [id])
-  book         Book               @relation(fields: [bookId], references: [id])
+  id          String            @id @default(cuid())
+  userId      String
+  bookId      String
+  requestDate DateTime          @default(now())
+  expiryDate  DateTime?
+  status      ReservationStatus @default(PENDING)
+  notifiedAt  DateTime?
+  user        User              @relation(fields: [userId], references: [id])
+  book        Book              @relation(fields: [bookId], references: [id])
 
   @@index([userId])
   @@index([bookId])
@@ -259,12 +280,12 @@ model Reservation {
 }
 
 model Attendance {
-  id        String        @id @default(cuid())
-  userId    String
-  checkIn   DateTime      @default(now())
-  checkOut  DateTime?
-  method    CheckInMethod @default(QR_CODE)
-  user      User          @relation(fields: [userId], references: [id])
+  id       String        @id @default(cuid())
+  userId   String
+  checkIn  DateTime      @default(now())
+  checkOut DateTime?
+  method   CheckInMethod @default(QR_CODE)
+  user     User          @relation(fields: [userId], references: [id])
 
   @@index([userId])
 }
@@ -288,14 +309,14 @@ model Notification {
 }
 
 model News {
-  id           String       @id @default(cuid())
-  title        String
-  content      String       @db.Text
-  image        String?
-  category     NewsCategory @default(ANNOUNCEMENT)
-  publishedAt  DateTime     @default(now())
-  isPublished  Boolean      @default(true)
-  createdAt    DateTime     @default(now())
+  id          String       @id @default(cuid())
+  title       String
+  content     String       @db.Text
+  image       String?
+  category    NewsCategory @default(ANNOUNCEMENT)
+  publishedAt DateTime     @default(now())
+  isPublished Boolean      @default(true)
+  createdAt   DateTime     @default(now())
 
   @@index([publishedAt])
   @@index([isPublished])
@@ -326,17 +347,23 @@ model SiteSetting {
 /// Affectation d'un rôle du personnel. Une ligne par (utilisateur, rôle) ;
 /// la révocation renseigne revokedAt au lieu de supprimer (traçabilité).
 model StaffAssignment {
-  id          String    @id @default(cuid())
-  userId      String
-  role        StaffRole
-  grantedById String?
-  createdAt   DateTime  @default(now())
-  revokedAt   DateTime?
-  user        User      @relation("StaffAssignmentUser", fields: [userId], references: [id], onDelete: Cascade)
-  grantedBy   User?     @relation("StaffAssignmentGrantedBy", fields: [grantedById], references: [id], onDelete: SetNull)
+  id           String      @id @default(cuid())
+  userId       String
+  role         StaffRole
+  grantedById  String?
+  createdAt    DateTime    @default(now())
+  revokedAt    DateTime?
+  /// Obligatoire pour DEPARTMENT_MANAGER, interdit pour ADMIN et LIBRARIAN (contrainte CHECK).
+  departmentId String?
+  user         User        @relation("StaffAssignmentUser", fields: [userId], references: [id], onDelete: Cascade)
+  grantedBy    User?       @relation("StaffAssignmentGrantedBy", fields: [grantedById], references: [id], onDelete: SetNull)
+  department   Department? @relation(fields: [departmentId], references: [id], onDelete: Restrict)
 
-  @@unique([userId, role])
+  // Unicité écrite à la main dans la migration (index partiels) :
+  //   (userId, role) quand departmentId est NULL ; (userId, role, departmentId) sinon.
+  @@index([userId])
   @@index([grantedById])
+  @@index([departmentId])
 }
 
 /// Compteur de limitation de tentatives (fenêtre fixe). La clé est toujours
@@ -367,17 +394,20 @@ model Faculty {
 }
 
 model Department {
-  id        String            @id @default(cuid())
-  slug      String            @unique
-  name      String
-  facultyId String
-  sortOrder Int
-  faculty   Faculty           @relation(fields: [facultyId], references: [id])
-  programs  Program[]
-  aliases   DepartmentAlias[]
-  users     User[]
-  members   LibraryMember[]
-  books     Book[]
+  id                  String               @id @default(cuid())
+  slug                String               @unique
+  name                String
+  facultyId           String
+  sortOrder           Int
+  faculty             Faculty              @relation(fields: [facultyId], references: [id])
+  programs            Program[]
+  aliases             DepartmentAlias[]
+  users               User[]
+  members             LibraryMember[]
+  books               Book[]
+  staffAssignments    StaffAssignment[]
+  readingLists        ReadingList[]
+  acquisitionRequests AcquisitionRequest[]
 
   @@index([facultyId])
 }
@@ -392,6 +422,7 @@ model Program {
   department   Department      @relation(fields: [departmentId], references: [id])
   users        User[]
   members      LibraryMember[]
+  readingLists ReadingList[]
 
   @@unique([departmentId, slug])
 }
@@ -447,4 +478,74 @@ model SiteEvent {
   processedAt DateTime?
 
   @@index([processedAt, seq])
+}
+
+// --- Listes de lectures et propositions d'acquisition ---------------------------
+
+/// Liste de lectures d'un cours, créée par un enseignant, dans SON département.
+model ReadingList {
+  id           String            @id @default(cuid())
+  ownerId      String
+  departmentId String
+  programId    String?
+  title        String            @db.VarChar(150)
+  courseCode   String?           @db.VarChar(40)
+  description  String?           @db.VarChar(1000)
+  academicYear String?           @db.VarChar(9)
+  status       ReadingListStatus @default(DRAFT)
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+  owner        User              @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  department   Department        @relation(fields: [departmentId], references: [id], onDelete: Restrict)
+  program      Program?          @relation(fields: [programId], references: [id], onDelete: SetNull)
+  items        ReadingListItem[]
+
+  @@index([departmentId, status])
+  @@index([ownerId])
+  @@index([programId])
+}
+
+model ReadingListItem {
+  id        String      @id @default(cuid())
+  listId    String
+  bookId    String
+  note      String?     @db.VarChar(500)
+  position  Int
+  createdAt DateTime    @default(now())
+  list      ReadingList @relation(fields: [listId], references: [id], onDelete: Cascade)
+  book      Book        @relation(fields: [bookId], references: [id], onDelete: Restrict)
+
+  @@unique([listId, bookId])
+  @@index([bookId])
+}
+
+/// Proposition d'acquisition : enseignant → responsable du département → bibliothèque.
+model AcquisitionRequest {
+  id                    String            @id @default(cuid())
+  requesterId           String
+  departmentId          String
+  title                 String            @db.VarChar(200)
+  author                String            @db.VarChar(150)
+  isbn                  String?           @db.VarChar(20)
+  publisher             String?           @db.VarChar(150)
+  year                  Int?
+  justification         String            @db.VarChar(1000)
+  status                AcquisitionStatus @default(SUBMITTED)
+  departmentDecidedById String?
+  departmentDecidedAt   DateTime?
+  departmentNote        String?           @db.VarChar(500)
+  libraryDecidedById    String?
+  libraryDecidedAt      DateTime?
+  libraryNote           String?           @db.VarChar(500)
+  acquiredAt            DateTime?
+  createdAt             DateTime          @default(now())
+  updatedAt             DateTime          @updatedAt
+  requester             User              @relation("AcquisitionRequester", fields: [requesterId], references: [id], onDelete: Cascade)
+  department            Department        @relation(fields: [departmentId], references: [id], onDelete: Restrict)
+  departmentDecidedBy   User?             @relation("AcquisitionDepartmentDecider", fields: [departmentDecidedById], references: [id], onDelete: SetNull)
+  libraryDecidedBy      User?             @relation("AcquisitionLibraryDecider", fields: [libraryDecidedById], references: [id], onDelete: SetNull)
+
+  @@index([departmentId, status])
+  @@index([requesterId, createdAt])
+  @@index([status])
 }
