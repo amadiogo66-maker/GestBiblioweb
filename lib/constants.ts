@@ -59,6 +59,8 @@ export const RATE_LIMITS = {
   acquisitionCreate: { limit: 10, windowMs: 60 * MINUTE_MS },
   // Décisions sur les propositions et modération des listes (par membre du personnel).
   staffAcquisitionDecision: { limit: 60, windowMs: 15 * MINUTE_MS },
+  // Publications d'une liste AVEC notification des étudiants (par enseignant).
+  readingListNotify: { limit: 5, windowMs: 24 * 60 * MINUTE_MS },
 } as const satisfies Record<string, RateLimitRule>;
 
 /** Au-delà de ce délai sans contact, le logiciel de gestion est considéré injoignable. */
@@ -103,6 +105,12 @@ export const DUPLICATE_WARNING_CODE = 'duplicate_warning';
 /** Propositions « ouvertes » : pas encore refusées ni acquises (quota, doublons). */
 export const OPEN_ACQUISITION_STATUSES = ['SUBMITTED', 'DEPT_APPROVED', 'LIBRARY_ACCEPTED'] as const;
 export const READING_LISTS_PAGE_SIZE = 20;
+/** Notification des étudiants à la publication : plafond par publication, taille des lots d'insertion. */
+export const READING_LIST_NOTIFY = { maxRecipients: 3000, batchSize: 500 } as const;
+/** Valeur explicite du filtre « Tous les départements » de /listes-de-lecture. */
+export const ALL_DEPARTMENTS_FILTER = 'all';
+/** Listes « pour vous » du tableau de bord. */
+export const READING_LISTS_FOR_YOU = 3;
 export const ACQUISITIONS_PAGE_SIZE = 20;
 
 /**

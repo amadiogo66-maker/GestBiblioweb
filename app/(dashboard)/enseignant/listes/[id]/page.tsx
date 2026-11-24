@@ -9,6 +9,8 @@ import { ApiActionButton } from '@/components/shared/ApiActionButton';
 import { Panel, TeacherSpace } from '@/components/teacher/TeacherSpace';
 import { ReadingListForm } from '@/components/teacher/ReadingListForm';
 import { ItemNoteForm } from '@/components/teacher/ItemNoteForm';
+import { PublishListControl } from '@/components/teacher/PublishListControl';
+import { countReadingListRecipients, readingListAlreadyNotified } from '@/lib/reading-list-notify';
 import { requireTeacherPage } from '@/lib/teacher-access';
 import { prisma } from '@/lib/prisma';
 import { READING_LIST_QUOTAS } from '@/lib/constants';
@@ -58,7 +60,8 @@ export default async function EditReadingListPage({ params, searchParams }: Page
 
   const { q } = catalogSearchQuerySchema.parse(flattenSearchParams(await searchParams));
   const inList = new Set(list.items.map((item) => item.book.id));
-  const [programs, results] = await Promise.all([
+  const draft = list.status !== 'PUBLISHED';
+  const [programs, results, recipients, alreadyNotified] = await Promise.all([
     prisma.program.findMany({ where: { departmentId: list.departmentId }, select: { id: true, name: true }, orderBy: { sortOrder: 'asc' } }),
     q
       ? prisma.book.findMany({
@@ -74,6 +77,9 @@ export default async function EditReadingListPage({ params, searchParams }: Page
           select: { id: true, title: true, author: true, year: true },
         })
       : Promise.resolve([]),
+    // Destinataires possibles : comptage agrégé, seulement pour un brouillon (case de publication).
+    draft ? countReadingListRecipients(list.departmentId, user.id) : Promise.resolve(0),
+    draft ? readingListAlreadyNotified(list.id) : Promise.resolve(false),
   ]);
   const apiBase = `/api/teacher/reading-lists/${list.id}`;
   const isFull = list.items.length >= READING_LIST_QUOTAS.itemsPerList;
@@ -92,9 +98,13 @@ export default async function EditReadingListPage({ params, searchParams }: Page
             ) : null}
           </div>
           <div className="flex flex-wrap gap-2">
-            <ApiActionButton url={apiBase} method="PATCH" body={{ status: published ? 'DRAFT' : 'PUBLISHED' }} variant={published ? 'outline' : 'primary'}>
-              {published ? 'Repasser en brouillon' : 'Publier la liste'}
-            </ApiActionButton>
+            {published ? (
+              <ApiActionButton url={apiBase} method="PATCH" body={{ status: 'DRAFT' }} variant="outline">
+                Repasser en brouillon
+              </ApiActionButton>
+            ) : (
+              <PublishListControl url={apiBase} recipients={recipients} alreadyNotified={alreadyNotified} />
+            )}
             <ApiActionButton url={apiBase} method="DELETE" confirm="Supprimer définitivement cette liste ?" redirectTo="/enseignant/listes" variant="ghost">
               Supprimer
             </ApiActionButton>

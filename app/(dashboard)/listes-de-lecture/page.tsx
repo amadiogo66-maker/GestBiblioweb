@@ -6,8 +6,9 @@ import { Button } from '@/components/ui/Button';
 import { Pagination } from '@/components/shared/Pagination';
 import { requireActiveDashboardUser } from '@/lib/dashboard-access';
 import { listPublishedReadingLists } from '@/lib/reading-lists';
+import { ALL_DEPARTMENTS_FILTER } from '@/lib/constants';
 import { buildListHref } from '@/lib/list-url';
-import { formatDate } from '@/lib/utils';
+import { cn, formatDate } from '@/lib/utils';
 import { readingListsQuerySchema } from '@/schemas/reading-list';
 import { flattenSearchParams } from '@/schemas/staff';
 
@@ -22,13 +23,25 @@ interface PageProps {
 const selectClass =
   'w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20';
 
+const scopeLinkClass = (active: boolean): string =>
+  cn(
+    'rounded-full border px-4 py-1.5 text-sm font-medium transition-colors',
+    active ? 'border-primary bg-primary text-white' : 'border-slate-300 bg-white text-slate-700 hover:border-primary hover:text-primary'
+  );
+
 export default async function ReadingListsPage({ searchParams }: PageProps): Promise<ReactElement> {
-  // Membres connectés et actifs seulement (garde relu en base).
-  await requireActiveDashboardUser();
+  // Membres connectés et actifs seulement ; département relu en base par le garde.
+  const user = await requireActiveDashboardUser();
 
   const query = readingListsQuerySchema.parse(flattenSearchParams(await searchParams));
-  const { lists, total, page, totalPages, departments, programs } = await listPublishedReadingLists(query);
+  const { lists, total, page, totalPages, departments, programs, mode, selectedDepartment, myDepartment } = await listPublishedReadingLists(
+    query,
+    user.departmentId
+  );
   const filters = { q: query.q, departement: query.departement, programme: query.programme };
+  // Sans paramètre : département de l'utilisateur ; « Tous » est un choix explicite dans l'URL.
+  const selectValue = mode === 'all' ? ALL_DEPARTMENTS_FILTER : (selectedDepartment?.slug ?? query.departement ?? '');
+  const allHref = buildListHref('/listes-de-lecture', { q: query.q, departement: ALL_DEPARTMENTS_FILTER });
 
   return (
     <div className="flex flex-col gap-6">
@@ -36,6 +49,23 @@ export default async function ReadingListsPage({ searchParams }: PageProps): Pro
         <h1 className="font-serif text-2xl font-semibold text-primary">Listes de lectures</h1>
         <p className="mt-1 text-sm text-slate-500">Les ouvrages conseillés par les enseignants, cours par cours.</p>
       </div>
+
+      <nav aria-label="Départements affichés" className="flex flex-wrap items-center gap-2">
+        {myDepartment ? (
+          <Link
+            href={buildListHref('/listes-de-lecture', { q: query.q })}
+            className={scopeLinkClass(mode === 'mine')}
+            aria-current={mode === 'mine' ? 'page' : undefined}
+          >
+            Mon département
+          </Link>
+        ) : null}
+        <Link href={allHref} className={scopeLinkClass(mode === 'all')} aria-current={mode === 'all' ? 'page' : undefined}>
+          Tous les départements
+        </Link>
+        {mode === 'mine' && myDepartment ? <span className="text-sm text-slate-500">{myDepartment.name}</span> : null}
+        {mode === 'explicit' ? <span className="text-sm text-slate-500">{selectedDepartment?.name ?? 'Département inconnu'}</span> : null}
+      </nav>
 
       <form method="get" className="grid grid-cols-1 gap-3 rounded-xl border border-slate-200 bg-white p-4 sm:grid-cols-4">
         <div className="sm:col-span-2">
@@ -48,11 +78,12 @@ export default async function ReadingListsPage({ searchParams }: PageProps): Pro
           <label htmlFor="rl-dept" className="mb-1 block text-xs font-medium text-slate-600">
             Département
           </label>
-          <select id="rl-dept" name="departement" defaultValue={query.departement ?? ''} className={selectClass}>
-            <option value="">Tous</option>
+          <select id="rl-dept" name="departement" defaultValue={selectValue} className={selectClass}>
+            <option value={ALL_DEPARTMENTS_FILTER}>Tous les départements</option>
             {departments.map((department) => (
               <option key={department.id} value={department.slug}>
                 {department.name}
+                {department.id === myDepartment?.id ? ' (mon département)' : ''}
               </option>
             ))}
           </select>
@@ -86,6 +117,11 @@ export default async function ReadingListsPage({ searchParams }: PageProps): Pro
         <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed border-slate-300 bg-white px-4 py-16 text-center">
           <BookOpen className="h-8 w-8 text-primary" aria-hidden="true" />
           <p className="font-serif text-lg font-semibold text-primary">Aucune liste ne correspond à ces critères.</p>
+          {mode === 'mine' ? (
+            <Link href={allHref} className="text-sm text-primary underline">
+              Voir les listes de tous les départements
+            </Link>
+          ) : null}
         </div>
       ) : (
         <ul className="grid grid-cols-1 gap-3 md:grid-cols-2">

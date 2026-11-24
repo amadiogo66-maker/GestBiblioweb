@@ -1,6 +1,6 @@
 import type { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
-import { READING_LISTS_PAGE_SIZE, showReadingListTeacherName } from '@/lib/constants';
+import { ALL_DEPARTMENTS_FILTER, READING_LISTS_FOR_YOU, READING_LISTS_PAGE_SIZE, showReadingListTeacherName } from '@/lib/constants';
 import type { ReadingListsQuery } from '@/schemas/reading-list';
 
 /**
@@ -31,12 +31,24 @@ export interface PublishedListSummary {
 type OwnerName = { firstName: string; lastName: string } | null | undefined;
 const teacherName = (owner: OwnerName): string | null => (owner ? `${owner.firstName} ${owner.lastName}` : null);
 
+/**
+ * Filtre département effectif de /listes-de-lecture :
+ * - `departement=all` : tous les départements (choix explicite) ;
+ * - `departement=<slug>` : ce département (comportement inchangé) ;
+ * - sans paramètre : le département de l'utilisateur, RELU EN BASE par le garde,
+ *   sinon tous.
+ */
+export type DepartmentFilterMode = 'mine' | 'all' | 'explicit';
+
 /** Listes publiées, filtrées et paginées par l'URL (filtres par slug, recherche titre ou code de cours). */
-export async function listPublishedReadingLists(query: ReadingListsQuery) {
-  const [departments, department] = await Promise.all([
-    prisma.department.findMany({ select: departmentSelect, orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }] }),
-    query.departement ? prisma.department.findUnique({ where: { slug: query.departement }, select: { id: true } }) : null,
-  ]);
+export async function listPublishedReadingLists(query: ReadingListsQuery, userDepartmentId: string | null = null) {
+  const departments = await prisma.department.findMany({ select: departmentSelect, orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }] });
+  const myDepartment = userDepartmentId ? departments.find((item) => item.id === userDepartmentId) ?? null : null;
+  const mode: DepartmentFilterMode =
+    query.departement === ALL_DEPARTMENTS_FILTER ? 'all' : query.departement ? 'explicit' : myDepartment ? 'mine' : 'all';
+  // Slug explicite inconnu : aucun résultat (comportement inchangé).
+  const department =
+    mode === 'explicit' ? departments.find((item) => item.slug === query.departement) ?? null : mode === 'mine' ? myDepartment : null;
   const programs = department
     ? await prisma.program.findMany({ where: { departmentId: department.id }, select: programSelect, orderBy: { sortOrder: 'asc' } })
     : [];
@@ -44,7 +56,7 @@ export async function listPublishedReadingLists(query: ReadingListsQuery) {
 
   const where: Prisma.ReadingListWhereInput = {
     status: 'PUBLISHED',
-    ...(query.departement ? { departmentId: department?.id ?? '__aucun__' } : {}),
+    ...(mode !== 'all' ? { departmentId: department?.id ?? '__aucun__' } : {}),
     ...(program ? { programId: program.id } : {}),
     ...(query.q
       ? {
@@ -89,7 +101,29 @@ export async function listPublishedReadingLists(query: ReadingListsQuery) {
     teacherName: teacherName((row as { owner?: OwnerName }).owner),
   }));
 
-  return { lists, total, page, totalPages, departments, programs };
+  return { lists, total, page, totalPages, departments, programs, mode, selectedDepartment: department, myDepartment };
+}
+
+/**
+ * « Pour vous » du tableau de bord : les dernières listes PUBLIÉES du
+ * département de l'utilisateur (relu en base). UNE requête (compte des
+ * ouvrages par sous-requête agrégée), aucune requête par liste.
+ */
+export async function readingListsForDepartment(departmentId: string, take = READING_LISTS_FOR_YOU) {
+  const rows = await prisma.readingList.findMany({
+    where: { status: 'PUBLISHED', departmentId },
+    orderBy: [{ updatedAt: 'desc' }, { id: 'asc' }],
+    take,
+    select: { id: true, title: true, courseCode: true, owner: ownerSelect(), _count: { select: { items: true } } },
+  });
+
+  return rows.map((row) => ({
+    id: row.id,
+    title: row.title,
+    courseCode: row.courseCode,
+    itemCount: row._count.items,
+    teacherName: teacherName((row as { owner?: OwnerName }).owner),
+  }));
 }
 
 /** Détail d'une liste PUBLIÉE ; null pour un brouillon ou une liste inconnue (même réponse). */

@@ -45,9 +45,11 @@ export const readingListUpdateSchema = z
     academicYear: academicYear.nullish(),
     programId: id.nullish(),
     status: z.enum(['DRAFT', 'PUBLISHED']).optional(),
+    // Pris en compte seulement lors du passage à PUBLISHED.
+    notifyStudents: z.boolean().optional(),
   })
   .strict()
-  .refine((value) => Object.keys(value).length > 0, 'Aucune modification demandée');
+  .refine((value) => Object.keys(value).some((key) => key !== 'notifyStudents'), 'Aucune modification demandée');
 
 const note = z
   .string()

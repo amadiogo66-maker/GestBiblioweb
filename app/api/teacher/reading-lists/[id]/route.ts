@@ -3,7 +3,9 @@ import { jsonResponse, validationErrorResponse } from '@/lib/api';
 import { prisma } from '@/lib/prisma';
 import { logger } from '@/lib/logger';
 import { buildActivityLogData } from '@/lib/activity-log';
-import { BODY_LIMITS } from '@/lib/constants';
+import { BODY_LIMITS, RATE_LIMITS } from '@/lib/constants';
+import { enforceRateLimits, rateLimitKey } from '@/lib/rate-limit';
+import { notifyReadingListPublished, type NotifyResult } from '@/lib/reading-list-notify';
 import { payloadTooLargeResponse, readJsonBodyOrNull } from '@/lib/json-body';
 import { findOwnedReadingList } from '@/lib/reading-lists';
 import { beginTeacherWrite, notFoundResponse } from '@/lib/write-route';
@@ -16,6 +18,15 @@ interface RouteContext {
 }
 
 const NOT_FOUND = 'Liste introuvable';
+
+function publishMessage(result: NotifyResult | null): string {
+  if (!result) return 'Liste publiée';
+  if (result.alreadyNotified) return 'Liste publiée. Les étudiants avaient déjà été prévenus pour cette liste.';
+
+  const base = `Liste publiée. ${result.notified} étudiant${result.notified > 1 ? 's' : ''} prévenu${result.notified > 1 ? 's' : ''}.`;
+
+  return result.notNotified > 0 ? `${base} ${result.notNotified} non prévenu(s) : plafond par publication atteint.` : base;
+}
 
 /**
  * Modifie une liste de l'enseignant : champs, publication (PUBLISHED) ou
@@ -43,7 +54,7 @@ export async function PATCH(request: NextRequest, context: RouteContext): Promis
       return notFoundResponse(NOT_FOUND);
     }
 
-    const { programId, status, ...fields } = parsed.data;
+    const { programId, status, notifyStudents, ...fields } = parsed.data;
 
     if (programId) {
       const program = await prisma.program.findFirst({ where: { id: programId, departmentId: list.departmentId }, select: { id: true } });
@@ -54,24 +65,59 @@ export async function PATCH(request: NextRequest, context: RouteContext): Promis
     }
 
     const statusChanged = status !== undefined && status !== list.status;
-    const action = statusChanged ? (status === 'PUBLISHED' ? 'reading_list.publish' : 'reading_list.unpublish') : 'reading_list.update';
+    const publishing = statusChanged && status === 'PUBLISHED';
+    // Seul le propriétaire arrive ici (liste d'un autre : 404 ci-dessus) ; la
+    // notification n'est envisagée qu'au passage à PUBLISHED.
+    const notify = publishing && notifyStudents === true;
+    const action = statusChanged ? (publishing ? 'reading_list.publish' : 'reading_list.unpublish') : 'reading_list.update';
 
-    const updated = await prisma.$transaction(async (tx) => {
-      const result = await tx.readingList.update({
-        where: { id: list.id },
-        data: { ...fields, ...(programId !== undefined ? { programId } : {}), ...(status ? { status } : {}) },
-        select: { id: true, title: true, status: true },
-      });
-      await tx.activityLog.create({
-        data: buildActivityLogData({ action, userId: begin.user.id, headers: request.headers, details: { listId: list.id } }),
-      });
+    if (notify) {
+      const limited = await enforceRateLimits([{ key: rateLimitKey('reading-list-notify', begin.user.id), rule: RATE_LIMITS.readingListNotify }]);
 
-      return result;
+      if (limited) {
+        return limited;
+      }
+    }
+
+    const { updated, notification } = await prisma.$transaction(
+      async (tx) => {
+        const result = await tx.readingList.update({
+          where: { id: list.id },
+          data: { ...fields, ...(programId !== undefined ? { programId } : {}), ...(status ? { status } : {}) },
+          select: { id: true, title: true, status: true, departmentId: true },
+        });
+        const sent = notify ? await notifyReadingListPublished(tx, result, begin.user.id) : null;
+        // Journal : liste, département et nombres seulement, jamais d'identité de destinataire.
+        const details = sent
+          ? { listId: list.id, departmentId: result.departmentId, notified: sent.notified, notNotified: sent.notNotified }
+          : { listId: list.id };
+        await tx.activityLog.create({ data: buildActivityLogData({ action, userId: begin.user.id, headers: request.headers, details }) });
+
+        return { updated: { id: result.id, title: result.title, status: result.status }, notification: sent };
+      },
+      { timeout: 30_000 }
+    );
+
+    if (notification && notification.notNotified > 0) {
+      logger.warn('Reading list notification capped', { listId: list.id, notified: notification.notified, notNotified: notification.notNotified });
+    }
+
+    const message = statusChanged
+      ? publishing
+        ? publishMessage(notification)
+        : 'Liste repassée en brouillon'
+      : 'Liste enregistrée';
+
+    return jsonResponse({
+      success: true,
+      message,
+      data: {
+        ...updated,
+        notified: notification?.notified ?? 0,
+        ...(notification?.notNotified ? { notNotified: notification.notNotified } : {}),
+        ...(notification?.alreadyNotified ? { alreadyNotified: true } : {}),
+      },
     });
-
-    const message = statusChanged ? (status === 'PUBLISHED' ? 'Liste publiée' : 'Liste repassée en brouillon') : 'Liste enregistrée';
-
-    return jsonResponse({ success: true, message, data: updated });
   } catch (error) {
     const tooLarge = payloadTooLargeResponse(error);
 

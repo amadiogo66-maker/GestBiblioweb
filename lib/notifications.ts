@@ -85,6 +85,14 @@ export const notificationTexts = {
       message: `Votre emprunt de "${bookTitle}" est à rendre au plus tard le ${formatNotificationDate(dueDate)}.`,
     };
   },
+  /** Liste publiée pour le département : titre de la liste seulement, jamais le nom de l'enseignant. */
+  readingListPublished(listTitle: string): NotificationText {
+    return {
+      type: 'GENERAL',
+      title: 'Nouvelle liste de lecture',
+      message: `Une nouvelle liste de lecture est disponible pour votre département : "${listTitle}". Consultez Listes de lecture.`,
+    };
+  },
   /** Suivi d'une proposition d'acquisition : titre de l'ouvrage seulement, aucune donnée personnelle. */
   acquisitionUpdate(status: 'DEPT_APPROVED' | 'DEPT_REJECTED' | 'LIBRARY_ACCEPTED' | 'LIBRARY_REJECTED' | 'ACQUIRED', bookTitle: string): NotificationText {
     switch (status) {

@@ -28,6 +28,8 @@ const DETAIL_LABELS: Record<string, string> = {
   to: 'Étape après',
   substitute: 'Décision à la place du responsable',
   note: 'Note',
+  notified: 'Étudiants prévenus',
+  notNotified: 'Étudiants non prévenus (plafond atteint)',
 };
 
 const ACTION_LABELS: Record<string, string> = {
