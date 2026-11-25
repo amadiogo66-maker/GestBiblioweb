@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { attendanceCheckInSchema, attendanceCheckoutSchema } from '../schemas/attendance';
-import { createNewsSchema, listNewsSchema } from '../schemas/news';
+import { listNewsSchema, staffNewsCreateSchema } from '../schemas/news';
 
 const isVitestEnv = typeof globalThis !== 'undefined';
 if (!isVitestEnv) {
@@ -26,7 +26,7 @@ describe('attendance schemas', () => {
 
 describe('news schemas', () => {
   it('accepts a valid news creation payload', () => {
-    const result = createNewsSchema.safeParse({
+    const result = staffNewsCreateSchema.safeParse({
       title: 'Nouvelle ressource',
       content: 'Contenu de test',
       category: 'ANNOUNCEMENT',

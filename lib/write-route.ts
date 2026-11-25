@@ -1,6 +1,7 @@
 import type { NextResponse } from 'next/server';
 import { jsonResponse } from '@/lib/api';
-import { rejectCrossOrigin, requireDepartmentManager, requireTeacher } from '@/lib/authz';
+import type { StaffRole } from '@prisma/client';
+import { rejectCrossOrigin, requireDepartmentManager, requireStaff, requireTeacher } from '@/lib/authz';
 import { enforceRateLimits, rateLimitKey } from '@/lib/rate-limit';
 import { RATE_LIMITS, TEACHER_NO_DEPARTMENT_MESSAGE, type RateLimitRule } from '@/lib/constants';
 import type { DepartmentActor } from '@/lib/department-access';
@@ -70,5 +71,30 @@ export async function beginStaffDepartmentWrite(
   return limited ? { ok: false, response: limited } : { ok: true, user: staff.user, actor: staff.actor };
 }
 
-export const notFoundResponse = (message: string): NextResponse<ApiResponse<never>> => jsonResponse({ success: false, message }, 404);
+/**
+ * Préambule des écritures d'actualités du site : Origin → personnel de la
+ * bibliothèque (ADMIN ou LIBRARIAN) actif, MFA vérifiée, affectations relues
+ * en base → limitation du personnel existante (seuil de modération).
+ */
+export async function beginStaffNewsWrite(
+  request: Request
+): Promise<{ ok: true; user: PublicUser; staffRoles: StaffRole[] } | Refused> {
+  const crossOrigin = rejectCrossOrigin(request);
+
+  if (crossOrigin) {
+    return { ok: false, response: crossOrigin };
+  }
+
+  const staff = await requireStaff('ADMIN', 'LIBRARIAN');
+
+  if (!staff.ok) {
+    return staff;
+  }
+
+  const limited = await enforceRateLimits([{ key: rateLimitKey('staff-news', staff.user.id), rule: RATE_LIMITS.staffModeration }]);
+
+  return limited ? { ok: false, response: limited } : { ok: true, user: staff.user, staffRoles: staff.staffRoles };
+}
+
+export const notFoundResponse =(message: string): NextResponse<ApiResponse<never>> => jsonResponse({ success: false, message }, 404);
 export const conflictResponse = (message: string): NextResponse<ApiResponse<never>> => jsonResponse({ success: false, message }, 409);

@@ -39,10 +39,5 @@ export function getPopularBooks(limit: number) {
   });
 }
 
-export function getLatestNews(limit: number) {
-  return prisma.news.findMany({
-    where: { isPublished: true },
-    orderBy: { publishedAt: 'desc' },
-    take: limit,
-  });
-}
+// Lecture publique des actualités : une seule source (publiées et datées seulement).
+export { getLatestNews } from '@/lib/news-data';

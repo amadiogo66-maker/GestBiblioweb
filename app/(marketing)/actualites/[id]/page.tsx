@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { ArrowLeft, Newspaper } from 'lucide-react';
 import type { ReactElement } from 'react';
-import { getNewsById, getRelatedNews, NEWS_CATEGORY_LABELS } from '@/lib/news-data';
+import { getPublishedNewsById, getRelatedNews, NEWS_CATEGORY_LABELS } from '@/lib/news-data';
 import { ImageWithFallback } from '@/components/shared/ImageWithFallback';
 import { NewsCard } from '@/components/shared/NewsCard';
 import { Badge } from '@/components/ui/Badge';
@@ -17,9 +17,10 @@ interface ActualitePageProps {
 
 export default async function ActualitePage({ params }: ActualitePageProps): Promise<ReactElement> {
   const { id } = await params;
-  const news = await getNewsById(id);
+  // Brouillon, actualité dépubliée ou identifiant inconnu : même page « non trouvée ».
+  const news = await getPublishedNewsById(id);
 
-  if (!news || !news.isPublished) {
+  if (!news) {
     return (
       <Container className="flex flex-col items-center gap-4 py-24 text-center">
         <span className="flex h-16 w-16 items-center justify-center rounded-full bg-primary/10 text-primary">

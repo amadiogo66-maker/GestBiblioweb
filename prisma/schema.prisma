@@ -126,6 +126,7 @@ model User {
   acquisitionRequests         AcquisitionRequest[] @relation("AcquisitionRequester")
   acquisitionDeptDecisions    AcquisitionRequest[] @relation("AcquisitionDepartmentDecider")
   acquisitionLibraryDecisions AcquisitionRequest[] @relation("AcquisitionLibraryDecider")
+  newsAuthored                News[]               @relation("NewsAuthor")
 
   @@index([email])
   @@index([username])
@@ -308,19 +309,33 @@ model Notification {
   @@index([isRead])
 }
 
+/// Origine d'une actualité : chaque côté ne modifie ou ne supprime que les siennes.
+enum NewsSource {
+  SITE
+  SOFTWARE
+}
+
 model News {
   id          String       @id @default(cuid())
   title       String
   content     String       @db.Text
   image       String?
   category    NewsCategory @default(ANNOUNCEMENT)
-  publishedAt DateTime     @default(now())
+  /// Date de PREMIÈRE publication ; null pour un brouillon du site jamais publié.
+  publishedAt DateTime?    @default(now())
   isPublished Boolean      @default(true)
+  /// Les actualités antérieures viennent toutes du logiciel de gestion.
+  source      NewsSource   @default(SOFTWARE)
+  createdById String?
+  createdBy   User?        @relation("NewsAuthor", fields: [createdById], references: [id], onDelete: SetNull)
   createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @default(now()) @updatedAt
 
   @@index([publishedAt])
   @@index([isPublished])
   @@index([category])
+  @@index([source, isPublished, publishedAt])
+  @@index([createdById])
 }
 
 model ActivityLog {

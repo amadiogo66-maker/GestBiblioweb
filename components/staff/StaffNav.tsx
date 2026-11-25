@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { Building2, History, KeyRound, LayoutDashboard, PackagePlus, Users } from 'lucide-react';
+import { Building2, History, KeyRound, LayoutDashboard, Newspaper, PackagePlus, Users } from 'lucide-react';
 import type { ReactElement } from 'react';
 import { Container } from '@/components/ui/Container';
 
@@ -21,6 +21,7 @@ export function StaffNav({ isAdmin, isLibraryStaff, verified }: StaffNavProps): 
                 { href: '/personnel', label: 'Tableau de bord', icon: LayoutDashboard },
                 { href: '/personnel/comptes', label: 'Comptes', icon: Users },
                 { href: '/personnel/acquisitions', label: 'Acquisitions', icon: PackagePlus },
+                { href: '/personnel/actualites', label: 'Actualités', icon: Newspaper },
                 { href: '/personnel/departement', label: 'Départements', icon: Building2 },
               ]
             : [{ href: '/personnel/departement', label: 'Mon département', icon: Building2 }]),

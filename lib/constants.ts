@@ -112,6 +112,7 @@ export const ALL_DEPARTMENTS_FILTER = 'all';
 /** Listes « pour vous » du tableau de bord. */
 export const READING_LISTS_FOR_YOU = 3;
 export const ACQUISITIONS_PAGE_SIZE = 20;
+export const STAFF_NEWS_PAGE_SIZE = 20;
 
 /**
  * Affichage du nom de l'enseignant sur les listes publiées, lues par les membres.

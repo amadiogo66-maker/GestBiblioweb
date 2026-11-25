@@ -29,11 +29,23 @@ const DETAIL_LABELS: Record<string, string> = {
   substitute: 'Décision à la place du responsable',
   note: 'Note',
   attempted: 'Décision tentée',
+  newsId: 'Actualité',
+  fields: 'Champs modifiés',
   notified: 'Étudiants prévenus',
   notNotified: 'Étudiants non prévenus (plafond atteint)',
 };
 
+const NEWS_FIELD_LABELS: Record<string, string> = { title: 'titre', content: 'contenu', category: 'catégorie', isPublished: 'publication' };
+
 const ACTION_LABELS: Record<string, string> = {
+  'news.site.create': 'Actualité créée',
+  'news.site.update': 'Actualité modifiée',
+  'news.site.publish': 'Actualité publiée',
+  'news.site.unpublish': 'Actualité dépubliée',
+  'news.site.delete': 'Actualité supprimée',
+  'news.sync.create': 'Actualité reçue du logiciel',
+  'news.sync.update': 'Actualité mise à jour par le logiciel',
+  'news.sync.delete': 'Actualité supprimée par le logiciel',
   'staff.account.suspend': 'Suspension de compte',
   'staff.account.ban': 'Bannissement de compte',
   'staff.account.reactivate': 'Réactivation de compte',
@@ -94,6 +106,8 @@ function displayValue(key: string, value: unknown): string | null {
   }
   if (key === 'role' && value in STAFF_ROLE_LABELS) return STAFF_ROLE_LABELS[value as StaffRoleValue];
   if (key === 'source' && value === 'cli') return "Script d'administration";
+  // Noms des champs d'une actualité modifiés (jamais leurs valeurs).
+  if (key === 'fields') return value.split(',').map((field) => NEWS_FIELD_LABELS[field] ?? field).join(', ');
   return value.length > 500 ? `${value.slice(0, 500)}…` : value;
 }
 

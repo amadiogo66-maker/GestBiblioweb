@@ -36,10 +36,13 @@ describe('garde des pages protégées (projet réel)', () => {
       'app/(staff)/personnel/(protected)/departement/propositions/page.tsx',
       'app/(staff)/personnel/(protected)/departement/listes/page.tsx',
       'app/(staff)/personnel/(protected)/acquisitions/page.tsx',
+      'app/(staff)/personnel/(protected)/actualites/page.tsx',
+      'app/(staff)/personnel/(protected)/actualites/nouvelle/page.tsx',
+      'app/(staff)/personnel/(protected)/actualites/[id]/page.tsx',
     ]) {
       expect(pages).toContain(expected);
     }
-    expect(pages).toHaveLength(22);
+    expect(pages).toHaveLength(25);
   });
 
   it('garde attendu : le dossier le plus précis l’emporte', () => {

@@ -1,12 +1,13 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { listNewsSchema } from '@/schemas/news';
 import { jsonResponse, validationErrorResponse } from '@/lib/api';
-import { prisma } from '@/lib/prisma';
 import { logger } from '@/lib/logger';
+import { searchNews, type PublicNews } from '@/lib/news-data';
 import type { PaginatedResponse } from '@/types';
 
 export const runtime = 'nodejs';
 
+/** Actualités PUBLIÉES seulement (même lecture que les pages publiques). */
 export async function GET(request: NextRequest): Promise<NextResponse> {
   try {
     const query = Object.fromEntries(request.nextUrl.searchParams.entries());
@@ -17,37 +18,13 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     }
 
     const { page, limit, category } = parsed.data;
-    const skip = (page - 1) * limit;
-    const where = {
-      isPublished: true,
-      ...(category ? { category } : {}),
-    };
+    const result = await searchNews(page, limit, category);
+    // Forme de réponse inchangée : totalPages vaut 0 quand il n'y a aucune actualité.
+    const totalPages = Math.ceil(result.pagination.total / limit);
 
-    const [news, total] = await prisma.$transaction([
-      prisma.news.findMany({
-        where,
-        orderBy: { publishedAt: 'desc' },
-        skip,
-        take: limit,
-      }),
-      prisma.news.count({ where }),
-    ]);
-
-    const totalPages = Math.ceil(total / limit);
-
-    return jsonResponse<PaginatedResponse<(typeof news)[number]>>({
+    return jsonResponse<PaginatedResponse<PublicNews>>({
       success: true,
-      data: {
-        data: news,
-        pagination: {
-          page,
-          limit,
-          total,
-          totalPages,
-          hasNext: page < totalPages,
-          hasPrev: page > 1,
-        },
-      },
+      data: { data: result.data, pagination: { ...result.pagination, totalPages, hasNext: page < totalPages } },
     });
   } catch (error) {
     logger.error('News list failed', { error: error instanceof Error ? error.message : 'unknown error' });
