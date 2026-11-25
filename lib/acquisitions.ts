@@ -27,18 +27,25 @@ export type DecidedStatus = 'DEPT_APPROVED' | 'DEPT_REJECTED' | 'LIBRARY_ACCEPTE
 
 export type AcquisitionDecision =
   | { allowed: true; from: AcquisitionStatus; to: DecidedStatus; stage: Stage; substitute: boolean }
-  | { allowed: false; httpStatus: 403 | 404 | 409; message: string };
+  | { allowed: false; httpStatus: 403 | 404 | 409; message: string; selfDecision?: true };
 
 export const ACQUISITION_NOT_FOUND = 'Proposition introuvable';
+export const SELF_DECISION_MESSAGE = 'Vous ne pouvez pas décider de votre propre proposition';
 
 export function evaluateAcquisitionDecision(
   actor: DepartmentActor,
-  request: { departmentId: string; status: AcquisitionStatus },
+  request: { departmentId: string; status: AcquisitionStatus; requesterId: string },
   action: AcquisitionDecisionAction
 ): AcquisitionDecision {
   // Un autre département se comporte comme une proposition inexistante.
   if (!canAccessDepartment(actor, request.departmentId)) {
     return { allowed: false, httpStatus: 404, message: ACQUISITION_NOT_FOUND };
+  }
+
+  // Nul ne décide de sa propre proposition, à aucune étape et quel que soit son rôle
+  // (responsable, bibliothécaire, administrateur, y compris en substitution).
+  if (request.requesterId === actor.userId) {
+    return { allowed: false, httpStatus: 403, message: SELF_DECISION_MESSAGE, selfDecision: true };
   }
 
   const transition = TRANSITIONS[action];

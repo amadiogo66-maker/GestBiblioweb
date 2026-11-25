@@ -88,16 +88,16 @@ describe('règles pures', () => {
     ['bibliothèque accepte', 'A', 'DEPT_APPROVED', 'accept', 'l', 'ok'],
     ['bibliothèque marque acquis', 'A', 'LIBRARY_ACCEPTED', 'acquired', 'l', 'ok'],
   ])('%s', (_label, dept, status, action, who, expected) => {
-    const result = evaluateAcquisitionDecision(who === 'm' ? managerA() : librarian(), { departmentId: dept, status: status as never }, action as never);
+    const result = evaluateAcquisitionDecision(who === 'm' ? managerA() : librarian(), { departmentId: dept, status: status as never, requesterId: 'tiers' }, action as never);
 
     expect(result.allowed ? 'ok' : result.httpStatus).toBe(expected);
   });
 
   it('décision de la bibliothèque à la place d’un responsable : marquée comme substitution', () => {
-    const result = evaluateAcquisitionDecision(librarian(), { departmentId: 'A', status: 'SUBMITTED' }, 'approve');
+    const result = evaluateAcquisitionDecision(librarian(), { departmentId: 'A', status: 'SUBMITTED', requesterId: 'tiers' }, 'approve');
 
     expect(result).toMatchObject({ allowed: true, substitute: true });
-    expect(evaluateAcquisitionDecision(managerA(), { departmentId: 'A', status: 'SUBMITTED' }, 'approve')).toMatchObject({ substitute: false });
+    expect(evaluateAcquisitionDecision(managerA(), { departmentId: 'A', status: 'SUBMITTED', requesterId: 'tiers' }, 'approve')).toMatchObject({ substitute: false });
   });
 
   it('modération des comptes : un responsable de département n’est pas modérateur', () => {

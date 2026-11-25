@@ -5,6 +5,7 @@ import type { ReactElement } from 'react';
 import { Badge } from '@/components/ui/Badge';
 import { Pagination } from '@/components/shared/Pagination';
 import { ReasonActionForm, type ReasonAction } from '@/components/shared/ReasonActionForm';
+import { SelfDecisionNotice } from '@/components/staff/SelfDecisionNotice';
 import { requireStaffPage } from '@/lib/staff-page';
 import { buildListHref } from '@/lib/list-url';
 import { prisma } from '@/lib/prisma';
@@ -40,7 +41,7 @@ const selectClass =
   'rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20';
 
 export default async function LibraryAcquisitionsPage({ searchParams }: PageProps): Promise<ReactElement> {
-  await requireStaffPage('ADMIN', 'LIBRARIAN');
+  const context = await requireStaffPage('ADMIN', 'LIBRARIAN');
 
   const query = acquisitionsQuerySchema.parse(flattenSearchParams(await searchParams));
   const status = query.statut ?? 'DEPT_APPROVED';
@@ -70,6 +71,7 @@ export default async function LibraryAcquisitionsPage({ searchParams }: PageProp
       createdAt: true,
       departmentNote: true,
       libraryNote: true,
+      requesterId: true,
       department: { select: { name: true } },
       requester: { select: { firstName: true, lastName: true } },
     },
@@ -147,7 +149,9 @@ export default async function LibraryAcquisitionsPage({ searchParams }: PageProp
                 <p className="whitespace-pre-line text-sm text-slate-700">{request.justification}</p>
                 {request.departmentNote ? <p className="text-sm text-slate-600">Note du département : {request.departmentNote}</p> : null}
                 {request.libraryNote ? <p className="text-sm text-slate-600">Note de la bibliothèque : {request.libraryNote}</p> : null}
-                {actions ? (
+                {actions && request.requesterId === context.user.id ? (
+                  <SelfDecisionNotice />
+                ) : actions ? (
                   <ReasonActionForm url={`/api/staff/acquisitions/${request.id}`} method="PATCH" textField="note" textLabel="Note (motif obligatoire pour un refus)" actions={actions} />
                 ) : null}
               </li>

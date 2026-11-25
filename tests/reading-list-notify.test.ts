@@ -2,7 +2,8 @@ import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import type { ReactElement } from 'react';
-import { Prisma } from '@prisma/client';
+import type { Prisma } from '@prisma/client';
+import { countQueries } from './helpers/query-counter';
 import { prisma } from './helpers/local-db';
 import { cleanupWorld, createWorld, jsonRequest, params, proofFor, sessionFor, type Profile, type World } from './helpers/department-fixtures';
 
@@ -59,28 +60,6 @@ async function draftOf(ownerId: string, departmentId: string, title: string, sta
 
 async function publish(listId: string, body: Record<string, unknown>) {
   return read(await patchList(jsonRequest('PATCH', body), params({ id: listId })));
-}
-
-const METHODS = ['findUnique', 'findUniqueOrThrow', 'findFirst', 'findFirstOrThrow', 'findMany', 'count', 'aggregate', 'groupBy', 'create', 'createMany', 'update', 'updateMany', 'upsert', 'delete', 'deleteMany'] as const;
-
-/** Compte TOUTES les requêtes Prisma (chaque modèle, chaque méthode, SQL brut). */
-function countQueries() {
-  const spies: Array<{ mock: { calls: unknown[] }; mockRestore: () => void }> = [];
-  const client = prisma as unknown as Record<string, Record<string, unknown>>;
-
-  for (const model of Prisma.dmmf.datamodel.models) {
-    const delegate = client[model.name[0].toLowerCase() + model.name.slice(1)];
-    for (const method of METHODS) {
-      if (typeof delegate?.[method] === 'function') spies.push(vi.spyOn(delegate as never, method as never));
-    }
-  }
-  for (const method of ['$executeRaw', '$queryRaw', '$executeRawUnsafe', '$queryRawUnsafe']) spies.push(vi.spyOn(client as never, method as never));
-
-  return {
-    total: () => spies.reduce((sum, spy) => sum + spy.mock.calls.length, 0),
-    readingListFindMany: () => (prisma.readingList.findMany as unknown as { mock: { calls: unknown[] } }).mock.calls.length,
-    restore: () => spies.forEach((spy) => spy.mockRestore()),
-  };
 }
 
 beforeAll(async () => {
@@ -165,7 +144,7 @@ describe('« Pour vous » sur le tableau de bord', () => {
     const markup = html(await Dashboard());
 
     expect(markup).not.toContain('Listes de lecture pour vous');
-    expect(queries.readingListFindMany()).toBe(0);
+    expect(queries.calls('readingList.findMany')).toBe(0);
     expect(queries.total()).toBe(7);
     queries.restore();
   });
@@ -180,7 +159,7 @@ describe('« Pour vous » sur le tableau de bord', () => {
     const queries = countQueries();
     await Dashboard();
 
-    expect(queries.readingListFindMany()).toBe(1);
+    expect(queries.calls('readingList.findMany')).toBe(1);
     expect(queries.total()).toBe(8);
     queries.restore();
   });

@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import type { ReactElement } from 'react';
 import { Pagination } from '@/components/shared/Pagination';
 import { ReasonActionForm, type ReasonAction } from '@/components/shared/ReasonActionForm';
+import { SelfDecisionNotice } from '@/components/staff/SelfDecisionNotice';
 import { DepartmentSpace } from '@/components/staff/DepartmentSpace';
 import { requireDepartmentManagerPage } from '@/lib/staff-page';
 import { resolveScopedDepartment } from '@/lib/department-scope';
@@ -51,6 +52,7 @@ export default async function DepartmentProposalsPage({ searchParams }: PageProp
           year: true,
           justification: true,
           createdAt: true,
+          requesterId: true,
           requester: { select: { firstName: true, lastName: true } },
         },
       })
@@ -77,13 +79,17 @@ export default async function DepartmentProposalsPage({ searchParams }: PageProp
                 </p>
               </div>
               <p className="whitespace-pre-line text-sm text-slate-700">{request.justification}</p>
-              <ReasonActionForm
-                url={`/api/staff/acquisitions/${request.id}`}
-                method="PATCH"
-                textField="note"
-                textLabel="Note ou motif (motif obligatoire pour un refus)"
-                actions={DEPARTMENT_DECISIONS}
-              />
+              {request.requesterId === context.user.id ? (
+                <SelfDecisionNotice />
+              ) : (
+                <ReasonActionForm
+                  url={`/api/staff/acquisitions/${request.id}`}
+                  method="PATCH"
+                  textField="note"
+                  textLabel="Note ou motif (motif obligatoire pour un refus)"
+                  actions={DEPARTMENT_DECISIONS}
+                />
+              )}
             </li>
           ))}
         </ul>

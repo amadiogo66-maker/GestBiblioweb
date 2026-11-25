@@ -28,6 +28,7 @@ const DETAIL_LABELS: Record<string, string> = {
   to: 'Étape après',
   substitute: 'Décision à la place du responsable',
   note: 'Note',
+  attempted: 'Décision tentée',
   notified: 'Étudiants prévenus',
   notNotified: 'Étudiants non prévenus (plafond atteint)',
 };
@@ -65,6 +66,7 @@ const ACTION_LABELS: Record<string, string> = {
   'acquisition.library_accepted': 'Proposition acceptée par la bibliothèque',
   'acquisition.library_rejected': 'Proposition refusée par la bibliothèque',
   'acquisition.acquired': 'Ouvrage acquis',
+  'acquisition.self_decision_denied': 'Décision refusée : propre proposition',
 };
 
 const CLI_ACTIONS = new Set(['staff.grant', 'staff.revoke']);

@@ -101,7 +101,9 @@ export async function listPublishedReadingLists(query: ReadingListsQuery, userDe
     teacherName: teacherName((row as { owner?: OwnerName }).owner),
   }));
 
-  return { lists, total, page, totalPages, departments, programs, mode, selectedDepartment: department, myDepartment };
+  // `selectedProgram` est null pour un programme étranger au département choisi
+  // (ou accompagnant « Tous ») : le paramètre est alors ignoré, sans erreur.
+  return { lists, total, page, totalPages, departments, programs, mode, selectedDepartment: department, myDepartment, selectedProgram: program };
 }
 
 /**

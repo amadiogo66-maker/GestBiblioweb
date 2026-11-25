@@ -4,6 +4,7 @@ import type { Metadata } from 'next';
 import type { ReactElement } from 'react';
 import { Button } from '@/components/ui/Button';
 import { Pagination } from '@/components/shared/Pagination';
+import { AutoSubmitSelect } from '@/components/shared/AutoSubmitSelect';
 import { requireActiveDashboardUser } from '@/lib/dashboard-access';
 import { listPublishedReadingLists } from '@/lib/reading-lists';
 import { ALL_DEPARTMENTS_FILTER } from '@/lib/constants';
@@ -34,11 +35,16 @@ export default async function ReadingListsPage({ searchParams }: PageProps): Pro
   const user = await requireActiveDashboardUser();
 
   const query = readingListsQuerySchema.parse(flattenSearchParams(await searchParams));
-  const { lists, total, page, totalPages, departments, programs, mode, selectedDepartment, myDepartment } = await listPublishedReadingLists(
-    query,
-    user.departmentId
-  );
-  const filters = { q: query.q, departement: query.departement, programme: query.programme };
+  const { lists, total, page, totalPages, departments, programs, mode, selectedDepartment, myDepartment, selectedProgram } =
+    await listPublishedReadingLists(query, user.departmentId);
+  // Un programme ignoré (étranger au département, ou avec « Tous ») n'est pas recopié dans les liens.
+  const filters = { q: query.q, departement: query.departement, programme: selectedProgram?.slug };
+  const programHelp =
+    programs.length > 0
+      ? null
+      : selectedDepartment
+        ? 'Aucun programme n’est enregistré pour ce département'
+        : 'Choisissez un département pour filtrer par programme';
   // Sans paramètre : département de l'utilisateur ; « Tous » est un choix explicite dans l'URL.
   const selectValue = mode === 'all' ? ALL_DEPARTMENTS_FILTER : (selectedDepartment?.slug ?? query.departement ?? '');
   const allHref = buildListHref('/listes-de-lecture', { q: query.q, departement: ALL_DEPARTMENTS_FILTER });
@@ -78,7 +84,8 @@ export default async function ReadingListsPage({ searchParams }: PageProps): Pro
           <label htmlFor="rl-dept" className="mb-1 block text-xs font-medium text-slate-600">
             Département
           </label>
-          <select id="rl-dept" name="departement" defaultValue={selectValue} className={selectClass}>
+          {/* Au changement : rechargement avec les programmes du nouveau département, programme remis à zéro. */}
+          <AutoSubmitSelect id="rl-dept" name="departement" defaultValue={selectValue} className={selectClass} resetFields={['programme']}>
             <option value={ALL_DEPARTMENTS_FILTER}>Tous les départements</option>
             {departments.map((department) => (
               <option key={department.id} value={department.slug}>
@@ -86,20 +93,32 @@ export default async function ReadingListsPage({ searchParams }: PageProps): Pro
                 {department.id === myDepartment?.id ? ' (mon département)' : ''}
               </option>
             ))}
-          </select>
+          </AutoSubmitSelect>
         </div>
         <div>
           <label htmlFor="rl-prog" className="mb-1 block text-xs font-medium text-slate-600">
             Programme
           </label>
-          <select id="rl-prog" name="programme" defaultValue={query.programme ?? ''} className={selectClass} disabled={programs.length === 0}>
-            <option value="">{programs.length === 0 ? 'Choisir un département' : 'Tous'}</option>
+          <select
+            id="rl-prog"
+            name="programme"
+            defaultValue={selectedProgram?.slug ?? ''}
+            className={cn(selectClass, 'disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500')}
+            disabled={programs.length === 0}
+            aria-describedby={programHelp ? 'rl-prog-help' : undefined}
+          >
+            <option value="">Tous les programmes</option>
             {programs.map((program) => (
               <option key={program.id} value={program.slug}>
                 {program.name}
               </option>
             ))}
           </select>
+          {programHelp ? (
+            <p id="rl-prog-help" className="mt-1 text-xs text-slate-500">
+              {programHelp}
+            </p>
+          ) : null}
         </div>
         <div className="sm:col-span-4">
           <Button type="submit" size="sm" variant="outline">

@@ -2,6 +2,7 @@ import type { NextRequest, NextResponse } from 'next/server';
 import { jsonResponse, validationErrorResponse } from '@/lib/api';
 import { prisma } from '@/lib/prisma';
 import { logger } from '@/lib/logger';
+import { buildActivityLogData } from '@/lib/activity-log';
 import { BODY_LIMITS } from '@/lib/constants';
 import { payloadTooLargeResponse, readJsonBodyOrNull } from '@/lib/json-body';
 import { AcquisitionConflictError, applyAcquisitionDecision, evaluateAcquisitionDecision, ACQUISITION_NOT_FOUND } from '@/lib/acquisitions';
@@ -54,6 +55,18 @@ export async function PATCH(request: NextRequest, context: RouteContext): Promis
     const decision = evaluateAcquisitionDecision(begin.actor, existing, parsed.data.action);
 
     if (!decision.allowed) {
+      if (decision.selfDecision) {
+        // Action dédiée ; détails réduits à la proposition et à l'action tentée.
+        await prisma.activityLog.create({
+          data: buildActivityLogData({
+            action: 'acquisition.self_decision_denied',
+            userId: begin.user.id,
+            headers: request.headers,
+            details: { requestId: existing.id, attempted: parsed.data.action },
+          }),
+        });
+      }
+
       return jsonResponse({ success: false, message: decision.message }, decision.httpStatus);
     }
 
