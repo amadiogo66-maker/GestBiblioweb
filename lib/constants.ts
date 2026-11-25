@@ -105,6 +105,11 @@ export const DUPLICATE_WARNING_CODE = 'duplicate_warning';
 /** Propositions « ouvertes » : pas encore refusées ni acquises (quota, doublons). */
 export const OPEN_ACQUISITION_STATUSES = ['SUBMITTED', 'DEPT_APPROVED', 'LIBRARY_ACCEPTED'] as const;
 export const READING_LISTS_PAGE_SIZE = 20;
+/** Une liste sans ouvrage ne se publie pas et n'est jamais montrée aux étudiants. */
+export const EMPTY_LIST_PUBLISH_MESSAGE = 'Ajoutez au moins un ouvrage avant de publier la liste';
+export const EMPTY_PUBLISHED_LIST_WARNING = 'Publiée mais vide : invisible pour les étudiants';
+/** Recherche du catalogue sur la page d'édition d'une liste. */
+export const READING_LIST_CATALOG_RESULTS = 10;
 /** Notification des étudiants à la publication : plafond par publication, taille des lots d'insertion. */
 export const READING_LIST_NOTIFY = { maxRecipients: 3000, batchSize: 500 } as const;
 /** Valeur explicite du filtre « Tous les départements » de /listes-de-lecture. */

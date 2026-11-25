@@ -41,7 +41,7 @@ beforeAll(async () => {
     select: { slug: true, name: true },
   });
   const make = (owner: Profile, departmentId: string, title: string, programId: string | null = null) =>
-    prisma.readingList.create({ data: { ownerId: world.users[owner].id, departmentId, programId, title: `${title} ${world.suffix}`, status: 'PUBLISHED' } });
+    prisma.readingList.create({ data: { ownerId: world.users[owner].id, departmentId, programId, title: `${title} ${world.suffix}`, status: 'PUBLISHED', items: { create: { bookId: world.books[0], position: 0 } } } });
   listA = await make('teacherA', world.deptA.id, 'Liste A');
   listAProgram = await make('teacherA', world.deptA.id, 'Liste A programme', world.programA);
   listB = await make('teacherB', world.deptB.id, 'Liste B');

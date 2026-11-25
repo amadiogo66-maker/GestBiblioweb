@@ -81,8 +81,11 @@ export const readingListsQuerySchema = z.object({
   page,
 });
 
+/** Recherche du catalogue (page d'édition d'une liste) : au-delà, la recherche est ignorée. */
+export const CATALOG_SEARCH_MAX = 100;
+
 export const catalogSearchQuerySchema = z.object({
-  q: z.string().trim().max(100).optional().catch(undefined),
+  q: z.string().trim().max(CATALOG_SEARCH_MAX).optional().catch(undefined),
 });
 
 export type ReadingListCreateInput = z.infer<typeof readingListCreateSchema>;

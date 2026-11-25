@@ -50,7 +50,9 @@ const html = (value: unknown) => renderToStaticMarkup(value as ReactElement);
 async function listOf(owner: Profile, status: 'DRAFT' | 'PUBLISHED' = 'DRAFT', title = 'Liste') {
   const user = world.users[owner];
   const dept = (await prisma.user.findUniqueOrThrow({ where: { id: user.id }, select: { departmentId: true } })).departmentId!;
-  return prisma.readingList.create({ data: { ownerId: user.id, departmentId: dept, title: `${title} ${world.suffix}`, status } });
+  // Liste publiée : avec un ouvrage (une liste vide n'est jamais visible des étudiants).
+  const items = status === 'PUBLISHED' ? { create: { bookId: world.books[world.books.length - 1], position: 0 } } : undefined;
+  return prisma.readingList.create({ data: { ownerId: user.id, departmentId: dept, title: `${title} ${world.suffix}`, status, items } });
 }
 
 beforeAll(async () => {

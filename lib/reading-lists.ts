@@ -5,9 +5,17 @@ import type { ReadingListsQuery } from '@/schemas/reading-list';
 
 /**
  * Lecture des listes de lectures. Côté membres, SEULES les listes PUBLISHED
- * sont visibles ; le nom de l'enseignant n'est chargé que si l'affichage est
- * activé (showReadingListTeacherName), sinon il ne quitte jamais la base.
+ * qui contiennent au moins un ouvrage sont visibles ; le nom de l'enseignant
+ * n'est chargé que si l'affichage est activé (showReadingListTeacherName),
+ * sinon il ne quitte jamais la base.
  */
+
+/**
+ * Liste visible des étudiants : publiée ET non vide. Une liste publiée dont on
+ * retire le dernier ouvrage reste publiée mais disparaît, comme une liste
+ * inconnue. Condition EXISTS dans la même requête : aucune requête par ligne.
+ */
+export const VISIBLE_LIST_WHERE = { status: 'PUBLISHED', items: { some: {} } } satisfies Prisma.ReadingListWhereInput;
 
 const departmentSelect = { id: true, slug: true, name: true } satisfies Prisma.DepartmentSelect;
 const programSelect = { id: true, slug: true, name: true } satisfies Prisma.ProgramSelect;
@@ -55,7 +63,7 @@ export async function listPublishedReadingLists(query: ReadingListsQuery, userDe
   const program = query.programme ? programs.find((item) => item.slug === query.programme) ?? null : null;
 
   const where: Prisma.ReadingListWhereInput = {
-    status: 'PUBLISHED',
+    ...VISIBLE_LIST_WHERE,
     ...(mode !== 'all' ? { departmentId: department?.id ?? '__aucun__' } : {}),
     ...(program ? { programId: program.id } : {}),
     ...(query.q
@@ -113,7 +121,7 @@ export async function listPublishedReadingLists(query: ReadingListsQuery, userDe
  */
 export async function readingListsForDepartment(departmentId: string, take = READING_LISTS_FOR_YOU) {
   const rows = await prisma.readingList.findMany({
-    where: { status: 'PUBLISHED', departmentId },
+    where: { ...VISIBLE_LIST_WHERE, departmentId },
     orderBy: [{ updatedAt: 'desc' }, { id: 'asc' }],
     take,
     select: { id: true, title: true, courseCode: true, owner: ownerSelect(), _count: { select: { items: true } } },
@@ -131,7 +139,7 @@ export async function readingListsForDepartment(departmentId: string, take = REA
 /** Détail d'une liste PUBLIÉE ; null pour un brouillon ou une liste inconnue (même réponse). */
 export async function getPublishedReadingList(id: string) {
   const list = await prisma.readingList.findFirst({
-    where: { id, status: 'PUBLISHED' },
+    where: { id, ...VISIBLE_LIST_WHERE },
     select: {
       id: true,
       title: true,
@@ -163,7 +171,7 @@ export async function getPublishedReadingList(id: string) {
 /** Listes PUBLIÉES qui contiennent un ouvrage : une seule requête (jointure), sans requête par ligne. */
 export async function publishedListsForBook(bookId: string, take = 10) {
   const items = await prisma.readingListItem.findMany({
-    where: { bookId, list: { status: 'PUBLISHED' } },
+    where: { bookId, list: VISIBLE_LIST_WHERE },
     orderBy: { list: { updatedAt: 'desc' } },
     take,
     select: { list: { select: { id: true, title: true, courseCode: true, department: { select: { name: true } } } } },
@@ -205,4 +213,18 @@ export async function moveReadingListItem(
 
   await Promise.all(ordered.map((id, position) => tx.readingListItem.update({ where: { id }, data: { position } })));
   return true;
+}
+
+/**
+ * Fiche d'un ouvrage : listes de l'enseignant connecté, avec l'information
+ * « contient déjà cet ouvrage ». UNE requête (sous-requête filtrée par ouvrage).
+ */
+export async function teacherListsForBook(ownerId: string, bookId: string) {
+  const lists = await prisma.readingList.findMany({
+    where: { ownerId },
+    orderBy: { updatedAt: 'desc' },
+    select: { id: true, title: true, items: { where: { bookId }, select: { id: true }, take: 1 }, _count: { select: { items: true } } },
+  });
+
+  return lists.map((list) => ({ id: list.id, title: list.title, hasBook: list.items.length > 0, itemCount: list._count.items }));
 }

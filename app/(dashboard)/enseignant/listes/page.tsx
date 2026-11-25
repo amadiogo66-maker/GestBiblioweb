@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { ListPlus } from 'lucide-react';
+import { AlertTriangle, ListPlus } from 'lucide-react';
 import type { Metadata } from 'next';
 import type { ReactElement } from 'react';
 import { Badge } from '@/components/ui/Badge';
@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/Button';
 import { NoDepartmentNotice, Panel, TeacherSpace } from '@/components/teacher/TeacherSpace';
 import { requireTeacherPage } from '@/lib/teacher-access';
 import { prisma } from '@/lib/prisma';
-import { READING_LIST_QUOTAS } from '@/lib/constants';
+import { EMPTY_PUBLISHED_LIST_WARNING, READING_LIST_QUOTAS } from '@/lib/constants';
 import { READING_LIST_STATUS_BADGE, READING_LIST_STATUS_LABELS } from '@/lib/reading-labels';
 import { formatDate } from '@/lib/utils';
 
@@ -29,6 +29,7 @@ export default async function TeacherReadingListsPage(): Promise<ReactElement> {
       status: true,
       updatedAt: true,
       program: { select: { name: true } },
+      department: { select: { name: true } },
       _count: { select: { items: true } },
     },
   });
@@ -65,8 +66,14 @@ export default async function TeacherReadingListsPage(): Promise<ReactElement> {
                 <div className="min-w-0">
                   <p className="truncate font-medium text-primary">{list.title}</p>
                   <p className="text-sm text-slate-500">
-                    {[list.courseCode, list.program?.name, list.academicYear].filter(Boolean).join(' · ') || 'Sans code de cours'}
+                    {[list.department.name, list.courseCode ?? 'Sans code de cours', list.program?.name, list.academicYear].filter(Boolean).join(' · ')}
                   </p>
+                  {list.status === 'PUBLISHED' && list._count.items === 0 ? (
+                    <p className="mt-1 flex items-center gap-1 text-xs font-medium text-danger">
+                      <AlertTriangle className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                      {EMPTY_PUBLISHED_LIST_WARNING}
+                    </p>
+                  ) : null}
                 </div>
                 <div className="flex shrink-0 items-center gap-3 text-sm text-slate-500">
                   <span>

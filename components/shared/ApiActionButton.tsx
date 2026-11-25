@@ -19,6 +19,9 @@ interface ApiActionButtonProps {
   variant?: 'primary' | 'secondary' | 'outline' | 'ghost';
   size?: 'sm' | 'md';
   ariaLabel?: string;
+  /** Action indisponible (l'API refuse aussi) ; l'explication est reliée par aria-describedby. */
+  disabled?: boolean;
+  describedBy?: string;
 }
 
 /**
@@ -36,6 +39,8 @@ export function ApiActionButton({
   variant = 'outline',
   size = 'sm',
   ariaLabel,
+  disabled = false,
+  describedBy,
 }: ApiActionButtonProps): ReactElement {
   const router = useRouter();
   const [pending, setPending] = useState(false);
@@ -60,7 +65,7 @@ export function ApiActionButton({
 
   return (
     <div className="flex flex-col gap-2">
-      <Button type="button" variant={variant} size={size} onClick={run} disabled={pending} aria-label={ariaLabel}>
+      <Button type="button" variant={variant} size={size} onClick={run} disabled={pending || disabled} aria-label={ariaLabel} aria-describedby={describedBy}>
         {pending ? 'Patientez…' : children}
       </Button>
       {error ? <AuthError message={error} /> : null}

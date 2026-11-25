@@ -55,7 +55,8 @@ async function makeUser(key: string, role: 'STUDENT' | 'TEACHER', status: 'ACTIV
 }
 
 async function draftOf(ownerId: string, departmentId: string, title: string, status: 'DRAFT' | 'PUBLISHED' = 'DRAFT') {
-  return prisma.readingList.create({ data: { ownerId, departmentId, title: `${title} ${world.suffix}`, status } });
+  // Un ouvrage : une liste vide ne se publie pas et n'est jamais visible des étudiants.
+  return prisma.readingList.create({ data: { ownerId, departmentId, title: `${title} ${world.suffix}`, status, items: { create: { bookId: world.books[0], position: 0 } } } });
 }
 
 async function publish(listId: string, body: Record<string, unknown>) {

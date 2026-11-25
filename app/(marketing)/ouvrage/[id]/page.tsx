@@ -4,7 +4,7 @@ import { LoanStatus, ReservationStatus } from '@prisma/client';
 import type { ReactElement } from 'react';
 import { prisma } from '@/lib/prisma';
 import { bookSelect } from '@/lib/books';
-import { getActiveSessionUserId } from '@/lib/dashboard-access';
+import { getActiveSessionViewer } from '@/lib/dashboard-access';
 import { Container } from '@/components/ui/Container';
 import { BookDetail } from '@/components/ouvrage/BookDetail';
 import { BookMetadata } from '@/components/ouvrage/BookMetadata';
@@ -14,7 +14,9 @@ import { SimilarBooks } from '@/components/ouvrage/SimilarBooks';
 import { EmptyState } from '@/components/ouvrage/EmptyState';
 import { CirculationNotice } from '@/components/shared/CirculationNotice';
 import { isCirculationReachable } from '@/lib/circulation-status';
-import { publishedListsForBook } from '@/lib/reading-lists';
+import { publishedListsForBook, teacherListsForBook } from '@/lib/reading-lists';
+import { READING_LIST_QUOTAS } from '@/lib/constants';
+import { AddToListForm } from '@/components/teacher/AddToListForm';
 
 export const dynamic = 'force-dynamic';
 
@@ -32,15 +34,18 @@ export default async function OuvragePage({ params }: OuvragePageProps): Promise
   }
 
   // Page publique : seul un compte ACTIF reçoit l'état de son prêt ou de sa réservation.
-  const viewerId = await getActiveSessionUserId();
+  const viewer = await getActiveSessionViewer();
+  const viewerId = viewer?.id ?? null;
 
   let loanDueDate: Date | null = null;
   let reservationStatus: ReservationStatus | null = null;
   // Listes de lectures : réservées aux membres connectés actifs, PUBLIÉES seulement.
   let readingLists: Awaited<ReturnType<typeof publishedListsForBook>> = [];
+  // Enseignant (rôle relu en base) : ses listes, pour « Ajouter à une de mes listes ». Une requête.
+  let teacherLists: Awaited<ReturnType<typeof teacherListsForBook>> = [];
 
   if (viewerId) {
-    const [loan, reservation, lists] = await Promise.all([
+    const [loan, reservation, lists, ownLists] = await Promise.all([
       prisma.loan.findFirst({
         where: { userId: viewerId, bookId: book.id, status: LoanStatus.ACTIVE },
         select: { dueDate: true },
@@ -54,11 +59,13 @@ export default async function OuvragePage({ params }: OuvragePageProps): Promise
         select: { status: true },
       }),
       publishedListsForBook(book.id),
+      viewer?.role === 'TEACHER' ? teacherListsForBook(viewerId, book.id) : Promise.resolve([]),
     ]);
 
     loanDueDate = loan?.dueDate ?? null;
     reservationStatus = reservation?.status ?? null;
     readingLists = lists;
+    teacherLists = ownLists;
   }
 
   const reachable = await isCirculationReachable();
@@ -96,6 +103,14 @@ export default async function OuvragePage({ params }: OuvragePageProps): Promise
               initialReservationStatus={reservationStatus}
               initialLoanDueDate={loanDueDate ? loanDueDate.toISOString() : null}
             />
+            {teacherLists.length > 0 ? (
+              <div className="rounded-xl border border-slate-200 bg-accent p-4">
+                <AddToListForm
+                  bookId={book.id}
+                  lists={teacherLists.map((list) => ({ id: list.id, title: list.title, hasBook: list.hasBook, full: list.itemCount >= READING_LIST_QUOTAS.itemsPerList }))}
+                />
+              </div>
+            ) : null}
           </div>
           <BookMetadata book={book} />
         </div>

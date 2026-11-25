@@ -3,12 +3,12 @@ import { jsonResponse, validationErrorResponse } from '@/lib/api';
 import { prisma } from '@/lib/prisma';
 import { logger } from '@/lib/logger';
 import { buildActivityLogData } from '@/lib/activity-log';
-import { BODY_LIMITS, RATE_LIMITS } from '@/lib/constants';
+import { BODY_LIMITS, EMPTY_LIST_PUBLISH_MESSAGE, RATE_LIMITS } from '@/lib/constants';
 import { enforceRateLimits, rateLimitKey } from '@/lib/rate-limit';
 import { notifyReadingListPublished, type NotifyResult } from '@/lib/reading-list-notify';
 import { payloadTooLargeResponse, readJsonBodyOrNull } from '@/lib/json-body';
 import { findOwnedReadingList } from '@/lib/reading-lists';
-import { beginTeacherWrite, notFoundResponse } from '@/lib/write-route';
+import { beginTeacherWrite, conflictResponse, notFoundResponse } from '@/lib/write-route';
 import { readingListUpdateSchema } from '@/schemas/reading-list';
 
 export const runtime = 'nodejs';
@@ -18,6 +18,8 @@ interface RouteContext {
 }
 
 const NOT_FOUND = 'Liste introuvable';
+
+class EmptyListError extends Error {}
 
 function publishMessage(result: NotifyResult | null): string {
   if (!result) return 'Liste publiée';
@@ -71,6 +73,12 @@ export async function PATCH(request: NextRequest, context: RouteContext): Promis
     const notify = publishing && notifyStudents === true;
     const action = statusChanged ? (publishing ? 'reading_list.publish' : 'reading_list.unpublish') : 'reading_list.update';
 
+    // Une liste vide ne se publie pas (et ne notifie donc personne) ; contrôlé avant
+    // la limitation des notifications pour ne pas la consommer, puis revérifié dans la transaction.
+    if (publishing && (await prisma.readingListItem.count({ where: { listId: list.id } })) === 0) {
+      return conflictResponse(EMPTY_LIST_PUBLISH_MESSAGE);
+    }
+
     if (notify) {
       const limited = await enforceRateLimits([{ key: rateLimitKey('reading-list-notify', begin.user.id), rule: RATE_LIMITS.readingListNotify }]);
 
@@ -81,6 +89,11 @@ export async function PATCH(request: NextRequest, context: RouteContext): Promis
 
     const { updated, notification } = await prisma.$transaction(
       async (tx) => {
+        // Dernier ouvrage retiré entre-temps : la publication est annulée.
+        if (publishing && (await tx.readingListItem.count({ where: { listId: list.id } })) === 0) {
+          throw new EmptyListError();
+        }
+
         const result = await tx.readingList.update({
           where: { id: list.id },
           data: { ...fields, ...(programId !== undefined ? { programId } : {}), ...(status ? { status } : {}) },
@@ -123,6 +136,10 @@ export async function PATCH(request: NextRequest, context: RouteContext): Promis
 
     if (tooLarge) {
       return tooLarge;
+    }
+
+    if (error instanceof EmptyListError) {
+      return conflictResponse(EMPTY_LIST_PUBLISH_MESSAGE);
     }
 
     logger.error('Reading list update failed', { error: error instanceof Error ? error.message : 'unknown error' });

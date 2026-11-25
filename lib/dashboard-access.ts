@@ -79,7 +79,12 @@ export async function requireActiveDashboardUser(): Promise<DashboardUser> {
  * s'il est actif, sinon null (la page reste accessible, sans donnée personnelle).
  */
 export async function getActiveSessionUserId(): Promise<string | null> {
+  return (await getActiveSessionViewer())?.id ?? null;
+}
+
+/** Comme getActiveSessionUserId, avec le rôle relu en base (même lecture mise en cache, aucune requête de plus). */
+export async function getActiveSessionViewer(): Promise<{ id: string; role: UserRole } | null> {
   const account = await loadSessionAccount();
 
-  return account?.status === 'ACTIVE' ? account.id : null;
+  return account?.status === 'ACTIVE' ? { id: account.id, role: account.role } : null;
 }
